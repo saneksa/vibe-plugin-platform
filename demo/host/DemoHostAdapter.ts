@@ -114,7 +114,9 @@ export class DemoHostAdapter implements HostAdapter {
       this.cfg.onNavigate(iid, path, replace);
       return;
     }
-    window.history.pushState(null, "", `/app/${iid}/${path}`);
+    const url = `/app/${iid}/${path.replace(/^\/+/, "")}`;
+    if (replace) window.history.replaceState(null, "", url);
+    else window.history.pushState(null, "", url);
   }
 
   getPluginOrigin(_plugin: { id: string; version: string }): string {

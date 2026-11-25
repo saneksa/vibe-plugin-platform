@@ -5,7 +5,7 @@ import type {
   RpcContext,
 } from "@vibe/plugin-contracts/host-core";
 import { getMeta, getPolicy } from "@vibe/plugin-contracts/protocol";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DemoHostAdapter,
   type DemoAdapterConfig,
@@ -72,6 +72,10 @@ const ref: InstanceRef = { iid: "i1", pluginId: "clock", version: "1.2.0" };
 describe("DemoHostAdapter", () => {
   beforeEach(() => {
     window.history.replaceState(null, "", "/");
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("storage is keyed by pluginId+iid and survives version change", async () => {
@@ -211,13 +215,28 @@ describe("DemoHostAdapter", () => {
     expect(window.location.pathname).toBe("/app/i1/settings");
   });
 
+  it("onNavigate honors replace: pushState for false, replaceState for true", () => {
+    const { cfg } = makeConfig();
+    const a = new DemoHostAdapter(cfg);
+    const push = vi.spyOn(window.history, "pushState");
+    const replace = vi.spyOn(window.history, "replaceState");
+
+    a.onNavigate("i7", "/settings", false);
+    expect(push).toHaveBeenCalledWith(null, "", "/app/i7/settings");
+    expect(replace).not.toHaveBeenCalled();
+
+    a.onNavigate("i7", "/settings", true);
+    expect(replace).toHaveBeenCalledWith(null, "", "/app/i7/settings");
+    expect(push).toHaveBeenCalledTimes(1);
+  });
+
   it("onNavigate uses the injected callback when provided", () => {
     const onNavigate = vi.fn();
     const { cfg } = makeConfig({ onNavigate });
     const a = new DemoHostAdapter(cfg);
 
-    a.onNavigate("i1", "settings", true);
-    expect(onNavigate).toHaveBeenCalledWith("i1", "settings", true);
+    a.onNavigate("i7", "/settings", true);
+    expect(onNavigate).toHaveBeenCalledWith("i7", "/settings", true);
     expect(window.location.pathname).toBe("/");
   });
 });
