@@ -80,10 +80,19 @@ async function installBridge(
   return bridge;
 }
 
+/**
+ * Opaque, conformance-only identity. Consumer adapters treat it as a key; it
+ * is never a plugin they must have registered or know how to resolve.
+ */
+const CONFORMANCE_PLUGIN = { id: "conformance-plugin", version: "1.0.0" } as const;
+const UPGRADE_VERSION = "2.0.0";
+const STORAGE_KEY = "rig-key";
+const STORAGE_VALUE = "rig-value";
+
 const UPGRADE_CTX: RpcContext = {
   iid: "i-upgrade",
-  pluginId: "hostile-widget",
-  version: "1.0.0",
+  pluginId: CONFORMANCE_PLUGIN.id,
+  version: CONFORMANCE_PLUGIN.version,
   caps: ["storage.write"],
 };
 
@@ -301,25 +310,32 @@ function adapterCases(
       // value through the adapter's public interface from inside the browser.
       name: "adapter-storage-survives-upgrade",
       run: async () => {
-        await adapter.dispatchRpc("storage.set", { key: "rig-key", value: "rig-value" }, UPGRADE_CTX);
-        await adapter.setActiveVersion("hostile-widget", "2.0.0");
-        const value = await page.evaluate(
-          (ctx) =>
-            (window as unknown as RigWindow).__rigDispatch("storage.get", "rig-key", ctx),
-          { ...UPGRADE_CTX, version: "2.0.0", caps: ["storage.read"] },
+        // The value is written and read back by this case itself: no consumer
+        // data or fixture-specific key format is assumed.
+        await adapter.dispatchRpc(
+          "storage.set", { key: STORAGE_KEY, value: STORAGE_VALUE }, UPGRADE_CTX,
         );
-        check(value === "rig-value", `storage did not survive upgrade: ${String(value)}`);
+        await adapter.setActiveVersion(CONFORMANCE_PLUGIN.id, UPGRADE_VERSION);
+        const value = await page.evaluate(
+          ({ ctx, key }) =>
+            (window as unknown as RigWindow).__rigDispatch("storage.get", key, ctx),
+          {
+            ctx: { ...UPGRADE_CTX, version: UPGRADE_VERSION, caps: ["storage.read"] },
+            key: STORAGE_KEY,
+          },
+        );
+        check(value === STORAGE_VALUE, `storage did not survive upgrade: ${String(value)}`);
       },
     },
     {
       name: "adapter-active-version-switch",
       run: async () => {
-        await adapter.setActiveVersion("hostile-widget", "2.0.0");
+        await adapter.setActiveVersion(CONFORMANCE_PLUGIN.id, UPGRADE_VERSION);
         const versions = await page.evaluate(() =>
           (window as unknown as RigWindow).__rigGetActiveVersions(),
         );
         check(
-          versions["hostile-widget"] === "2.0.0",
+          versions[CONFORMANCE_PLUGIN.id] === UPGRADE_VERSION,
           `activeVersion was not switched: ${JSON.stringify(versions)}`,
         );
       },
@@ -347,8 +363,8 @@ function adapterCases(
             state: new HostState(new MemoryStore()),
           });
           const descriptor: PluginDescriptor = {
-            id: "hostile-widget",
-            version: "2.0.0",
+            id: CONFORMANCE_PLUGIN.id,
+            version: UPGRADE_VERSION,
             kind: "widget",
             entry: "index.html",
             capabilities: [],
@@ -372,13 +388,14 @@ function adapterCases(
           () => document.querySelectorAll("#frames iframe").length,
         );
         check(remaining === 0, "browser frames survived unmount");
-        const theme = await page.evaluate(
+        // Adapter-agnostic liveness probe: the theme value is intentionally
+        // unconstrained by HostContext, so only require a defined result.
+        const value = await page.evaluate(
           (ctx) => (window as unknown as RigWindow).__rigDispatch("theme.get", undefined, ctx),
           { ...UPGRADE_CTX, caps: ["theme.read"] },
         );
         check(
-          typeof theme === "object" && theme !== null &&
-            (theme as { mode?: string }).mode === "dark",
+          value !== undefined && value !== null,
           "host stopped serving RPCs after unmount",
         );
       },
