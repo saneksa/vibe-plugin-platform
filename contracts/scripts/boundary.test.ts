@@ -1,9 +1,11 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 it("contracts has zero imports from demo", () => {
-  const files = readdirSync("src", { recursive: true }) as string[];
-  for (const f of files.filter(f => f.endsWith(".ts"))) {
-    expect(readFileSync(`src/${f}`, "utf8")).not.toMatch(/from ["'].*demo\//);
+  for (const dir of ["src", "conformance"]) {
+    const files = readdirSync(dir, { recursive: true }) as string[];
+    for (const f of files.filter(f => f.endsWith(".ts"))) {
+      expect(readFileSync(`${dir}/${f}`, "utf8")).not.toMatch(/from ["'].*demo\//);
+    }
   }
 });
 it("exports every required subpath", () => {
