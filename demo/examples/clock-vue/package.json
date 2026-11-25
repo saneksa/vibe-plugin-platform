@@ -1,0 +1,18 @@
+{
+  "name": "vibe-plugin-clock-vue",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "pack": "node scripts/pack.mjs"
+  },
+  "dependencies": {
+    "@vibe/plugin-contracts": "file:../../contracts",
+    "vue": "^3.5.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vite": "^7.1.0"
+  }
+}

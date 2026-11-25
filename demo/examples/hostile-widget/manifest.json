@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "id": "hostile-widget",
+  "kind": "widget",
+  "version": "1.0.0",
+  "hostApi": "^2",
+  "sdk": "2.0.0",
+  "title": "Hostile widget (isolation demo)",
+  "icon": "warning",
+  "entry": "index.html",
+  "capabilities": ["log"],
+  "defaultSize": { "w": 360, "h": 300 },
+  "minSize": { "w": 280, "h": 200 }
+}
