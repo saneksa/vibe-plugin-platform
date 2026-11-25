@@ -79,6 +79,33 @@ function stubFetch(fx: Fixture, postStatus = 200, postMessage = "uploaded") {
   });
 }
 
+/**
+ * Fetch fake with switches the test can flip after boot, so only the flow
+ * under test fails while the initial restore/refresh still succeed.
+ */
+function controlledFetch(fx: Fixture) {
+  const state = { failGet: false, failPut: false };
+  const fn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const url = String(input);
+    const method = init?.method ?? "GET";
+    if (method === "GET" && url.endsWith("/api/plugins")) {
+      if (state.failGet) throw new Error("registry list unavailable");
+      return response({ versions: fx.versions, activeVersion: fx.active });
+    }
+    if (method === "PUT" && url.includes("/active")) {
+      if (state.failPut) throw new Error("activation rejected by backend");
+      return response({ ...CLOCK });
+    }
+    if (url.endsWith("/api/meta")) return response({ hostVersion: "2.4.0" });
+    return response({}, 404);
+  });
+  return { fn, state };
+}
+
+function statusText(): string {
+  return document.querySelector("[data-upload-status]")?.textContent ?? "";
+}
+
 function seedApp(iid: string): void {
   window.localStorage.setItem(
     "host.instances.v1",
@@ -307,5 +334,93 @@ describe("demo host", () => {
     await vi.waitFor(() =>
       expect(document.querySelector("[data-upload-status]")?.textContent).toContain("hostAPI 1"),
     );
+  });
+
+  it("shows a status in the header when adding a widget fails", async () => {
+    const { fn, state } = controlledFetch(fixture());
+    boot({ fetch: fn });
+    await vi.waitFor(() => expect(document.querySelector('[data-add-widget="clock"]')).not.toBeNull());
+
+    state.failGet = true;
+    click('[data-add-widget="clock"]');
+
+    await vi.waitFor(() => expect(statusText()).toContain("Не удалось добавить виджет"));
+    expect(statusText()).toContain("registry list unavailable");
+    expect(document.querySelectorAll("iframe")).toHaveLength(0);
+  });
+
+  it("shows a status in the header when an upgrade fails", async () => {
+    const fx = fixture({
+      versions: [CLOCK, { ...CLOCK, version: "2.0.0" }],
+      active: { clock: "1.2.0" },
+    });
+    const { fn, state } = controlledFetch(fx);
+    boot({ fetch: fn });
+    await clickAdd("clock");
+    await vi.waitFor(() => expect(document.querySelector('[data-upgrade="clock"]')).not.toBeNull());
+
+    state.failPut = true;
+    click('[data-upgrade="clock"]');
+
+    await vi.waitFor(() => expect(statusText()).toContain("Не удалось обновить плагин"));
+    expect(statusText()).toContain("activation rejected by backend");
+  });
+
+  it("shows a status in the header when restore fails", async () => {
+    const fx = fixture();
+    let firstGet = true;
+    const fn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (method === "GET" && url.endsWith("/api/plugins")) {
+        if (firstGet) {
+          firstGet = false;
+          throw new Error("restore transport down");
+        }
+        return response({ versions: fx.versions, activeVersion: fx.active });
+      }
+      if (url.endsWith("/api/meta")) return response({ hostVersion: "2.4.0" });
+      return response({}, 404);
+    });
+
+    boot({ fetch: fn });
+
+    await vi.waitFor(() => expect(statusText()).toContain("Не удалось восстановить состояние"));
+    expect(statusText()).toContain("restore transport down");
+  });
+
+  it("shows a status in the header when opening an app fails", async () => {
+    const { fn, state } = controlledFetch(fixture());
+    boot({ fetch: fn });
+    await vi.waitFor(() => expect(document.querySelector('[data-launch="settings"]')).not.toBeNull());
+
+    state.failGet = true;
+    click('[data-launch="settings"]');
+
+    await vi.waitFor(() => expect(statusText()).toContain("Не удалось открыть приложение"));
+    expect(statusText()).toContain("registry list unavailable");
+    expect(document.querySelector("#app-stage iframe")).toBeNull();
+  });
+
+  it("shows a status in the header when the initial shell refresh fails", async () => {
+    const fx = fixture();
+    let getCalls = 0;
+    const fn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (method === "GET" && url.endsWith("/api/plugins")) {
+        getCalls += 1;
+        // call 1 = fm.restore(), calls 2/3 = Shell.refresh()
+        if (getCalls >= 2) throw new Error("registry refresh down");
+        return response({ versions: fx.versions, activeVersion: fx.active });
+      }
+      if (url.endsWith("/api/meta")) return response({ hostVersion: "2.4.0" });
+      return response({}, 404);
+    });
+
+    boot({ fetch: fn });
+
+    await vi.waitFor(() => expect(statusText()).toContain("Не удалось обновить данные реестра"));
+    expect(statusText()).toContain("registry refresh down");
   });
 });

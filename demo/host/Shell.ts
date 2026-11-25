@@ -27,6 +27,11 @@ function compareVersions(a: string, b: string): number {
   return 0;
 }
 
+/** Shared formatting for every reported host/UI failure. */
+export function errorMessage(error: unknown): string {
+  return error instanceof Error && error.message !== "" ? error.message : String(error);
+}
+
 function button(dataset: Record<string, string>, label: string): HTMLButtonElement {
   const el = document.createElement("button");
   el.type = "button";
@@ -44,6 +49,14 @@ export class Shell {
     private readonly root: HTMLElement,
   ) {
     this.render();
+  }
+
+  /** The one status surface in the header, shared by upload and host flows. */
+  showStatus(message: string, level: "info" | "error" = "info"): void {
+    const status = this.root.querySelector<HTMLElement>("[data-upload-status]");
+    if (status === null) return;
+    status.textContent = message;
+    status.dataset.level = level;
   }
 
   async refresh(): Promise<void> {
@@ -90,14 +103,12 @@ export class Shell {
       if (!(input instanceof HTMLInputElement) || input.dataset.upload === undefined) return;
       const file = input.files?.[0];
       if (file === undefined) return;
-      const status = this.root.querySelector<HTMLElement>("[data-upload-status]");
       void Promise.resolve(this.deps.onUpload(file)).then(
         (result) => {
-          if (status !== null) status.textContent = result.ok ? (result.message ?? "загружено") : result.message ?? "ошибка загрузки";
+          if (result.ok) this.showStatus(result.message ?? "загружено", "info");
+          else this.showStatus(result.message ?? "ошибка загрузки", "error");
         },
-        (error: unknown) => {
-          if (status !== null) status.textContent = error instanceof Error ? error.message : String(error);
-        },
+        (error: unknown) => this.showStatus(errorMessage(error), "error"),
       );
     });
   }

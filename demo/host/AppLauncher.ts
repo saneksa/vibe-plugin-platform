@@ -5,19 +5,23 @@
  */
 
 import type { RegistryClient } from "./RegistryClient.js";
+import { errorMessage } from "./Shell.js";
 
 export interface AppLauncherDeps {
   registry: RegistryClient;
   createApp(pluginId: string, version: string, route?: string): string;
   showApp(iid: string, path: string): void;
   closeApp(): void;
+  onError(message: string): void;
 }
 
 export class AppLauncher {
   constructor(private readonly deps: AppLauncherDeps) {}
 
   open(pluginId: string, route?: string): void {
-    void this.openAsync(pluginId, route);
+    void this.openAsync(pluginId, route).catch((error: unknown) => {
+      this.deps.onError(`Не удалось открыть приложение: ${errorMessage(error)}`);
+    });
   }
 
   close(): void {

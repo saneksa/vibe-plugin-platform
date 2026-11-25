@@ -14,7 +14,7 @@ import { AppLauncher } from "./AppLauncher.js";
 import { CANVAS_ID, Canvas, frameSlot, setCanvasResizeHandler } from "./Canvas.js";
 import { DemoHostAdapter } from "./DemoHostAdapter.js";
 import { RegistryClient } from "./RegistryClient.js";
-import { Shell } from "./Shell.js";
+import { errorMessage, Shell } from "./Shell.js";
 
 export const PLUGIN_ORIGIN = "http://localhost:4001";
 export const HOST_VERSION = "2.4.0";
@@ -228,7 +228,9 @@ export function boot(opts: BootOptions = {}): FrameManager {
           const version = active[pluginId] ?? dto.version;
           fm.createInstance(descriptorOf({ ...dto, version }), "widget");
           renderCanvas();
-        })().catch(() => undefined);
+        })().catch((error: unknown) => {
+          rt.shell.showStatus(`Не удалось добавить виджет: ${errorMessage(error)}`, "error");
+        });
       },
       onLaunchApp: (pluginId) => rt.launcher.open(pluginId),
       onUpload: (file) => registry.upload(file),
@@ -238,8 +240,14 @@ export function boot(opts: BootOptions = {}): FrameManager {
           await registry.setActive(pluginId, version);
           await fm.upgrade(pluginId, version);
           syncFramesFromDom();
-          await rt.shell.refresh();
-        })().catch(() => undefined);
+        })()
+          .catch((error: unknown) => {
+            rt.shell.showStatus(`Не удалось обновить плагин: ${errorMessage(error)}`, "error");
+          })
+          .then(() => rt.shell.refresh())
+          .catch((error: unknown) => {
+            rt.shell.showStatus(`Не удалось обновить данные реестра: ${errorMessage(error)}`, "error");
+          });
       },
     },
     shellRoot,
@@ -264,6 +272,7 @@ export function boot(opts: BootOptions = {}): FrameManager {
       },
       showApp: (iid, path) => showApp(iid, path, true),
       closeApp,
+      onError: (message) => rt.shell.showStatus(message, "error"),
     },
   );
 
@@ -279,12 +288,16 @@ export function boot(opts: BootOptions = {}): FrameManager {
 
   void fm
     .restore()
-    .catch(() => undefined)
+    .catch((error: unknown) => {
+      rt.shell.showStatus(`Не удалось восстановить состояние: ${errorMessage(error)}`, "error");
+    })
     .then(() => {
       syncFramesFromDom();
       return rt.shell.refresh();
     })
-    .catch(() => undefined);
+    .catch((error: unknown) => {
+      rt.shell.showStatus(`Не удалось обновить данные реестра: ${errorMessage(error)}`, "error");
+    });
 
   if (!popstateBound) {
     window.addEventListener("popstate", applyLocation);
