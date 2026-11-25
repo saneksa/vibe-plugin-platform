@@ -12,7 +12,9 @@ export default defineConfig({
   // One command brings up both origins (and fresh archives) for the e2e run.
   // The conformance rig starts its own two origins on ephemeral ports.
   webServer: {
-    command: "npm run examples:pack && rm -rf storage && npm run dev",
+    // Own the server: `command` clears the registry before start. No `tsx watch`
+    // here — a watcher spawns a child that can outlive Playwright's shutdown.
+    command: "npm run examples:pack && rm -rf storage && ./node_modules/.bin/tsx server/index.ts",
     url: "http://localhost:4000/api/plugins",
     // Tests must own the server: `command` clears the registry before start.
     // Reusing a manually started `npm run dev` would skip that cleanup and

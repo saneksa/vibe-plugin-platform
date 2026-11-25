@@ -10,6 +10,7 @@ import type { LayoutNode } from "@vibe/plugin-contracts/host-core";
 export const CANVAS_ID = "vibe-canvas";
 
 type ResizeHandler = ((path: string, ratio: number) => void) | null;
+type ContextHandler = ((iid: string, x: number, y: number) => void) | null;
 
 let resizeHandler: ResizeHandler = null;
 
@@ -47,10 +48,17 @@ function renderNode(
   path: string,
   container: HTMLElement,
   mount: (iid: string) => void,
+  onContext: ContextHandler,
 ): void {
   if (node.type === "leaf") {
     const leaf = pane("pane leaf");
     leaf.dataset.iid = node.iid;
+    if (onContext !== null) {
+      leaf.addEventListener("contextmenu", (event: MouseEvent) => {
+        event.preventDefault();
+        onContext(node.iid, event.clientX, event.clientY);
+      });
+    }
     const slot = pane("frame-slot");
     slot.dataset.iid = node.iid;
     leaf.appendChild(slot);
@@ -114,15 +122,15 @@ function renderNode(
 
   container.appendChild(split);
   split.append(a, divider, b);
-  renderNode(node.a, `${path}a`, a, mount);
-  renderNode(node.b, `${path}b`, b, mount);
+  renderNode(node.a, `${path}a`, a, mount, onContext);
+  renderNode(node.b, `${path}b`, b, mount, onContext);
 }
 
 export const Canvas = {
-  render(root: LayoutNode | null, mount: (iid: string) => void): void {
+  render(root: LayoutNode | null, mount: (iid: string) => void, onContext: ContextHandler = null): void {
     const host = hostElement();
     host.replaceChildren();
     host.classList.toggle("empty", root === null);
-    if (root !== null) renderNode(root, "", host, mount);
+    if (root !== null) renderNode(root, "", host, mount, onContext);
   },
 };

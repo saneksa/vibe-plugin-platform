@@ -1,7 +1,7 @@
 import type { PluginDescriptorDTO } from "@vibe/plugin-contracts/host-core";
 import { decodeEnvelope } from "@vibe/plugin-contracts/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Canvas, setCanvasResizeHandler } from "./Canvas.js";
+import { CANVAS_ID, Canvas, setCanvasResizeHandler } from "./Canvas.js";
 import { boot, PLUGIN_ORIGIN } from "./main.js";
 import { RegistryClient } from "./RegistryClient.js";
 
@@ -154,6 +154,49 @@ describe("demo host", () => {
     expect(fm.state.getLayout()?.type).toBe("split");
     // T4 axis convention: h = side-by-side (width split).
     expect(document.querySelector<HTMLElement>(".split")?.style.flexDirection).toBe("row");
+  });
+
+  it("right-click context menu removes a widget from the canvas", async () => {
+    const fm = boot();
+    await clickAdd("clock");
+    const iid = Object.keys(fm.state.getInstances())[0]!;
+
+    const pane = document.querySelector<HTMLElement>(`#${CANVAS_ID} .pane.leaf[data-iid="${iid}"]`);
+    if (pane === null) throw new Error("widget pane missing");
+    pane.dispatchEvent(
+      new MouseEvent("contextmenu", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 40,
+        clientY: 30,
+      }),
+    );
+
+    const remove = document.querySelector<HTMLElement>("[data-remove-widget]");
+    if (remove === null) throw new Error("context menu missing");
+    expect(remove.dataset.iid).toBe(iid);
+    remove.click();
+
+    await vi.waitFor(() =>
+      expect(document.querySelectorAll(`#${CANVAS_ID} iframe`)).toHaveLength(0),
+    );
+    expect(fm.state.getInstances()[iid]).toBeUndefined();
+    expect(fm.state.getLayout()).toBeNull();
+  });
+
+  it("widget context menu closes on an outside click without removing the widget", async () => {
+    const fm = boot();
+    await clickAdd("clock");
+    const iid = Object.keys(fm.state.getInstances())[0]!;
+    const pane = document.querySelector<HTMLElement>(`#${CANVAS_ID} .pane.leaf[data-iid="${iid}"]`)!;
+    pane.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    expect(document.querySelector("[data-widget-menu]")).not.toBeNull();
+
+    document.body.click();
+
+    expect(document.querySelector("[data-widget-menu]")).toBeNull();
+    expect(fm.state.getInstances()[iid]).toBeDefined();
+    expect(document.querySelectorAll(`#${CANVAS_ID} iframe`)).toHaveLength(1);
   });
 
   it("deep-link /app/<iid>/<path> resolves iid from registry and passes route", () => {

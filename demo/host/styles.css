@@ -110,6 +110,26 @@ html, body, #app {
   font-size: 13px;
 }
 
+.widget-menu {
+  position: fixed;
+  z-index: 10;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+.widget-menu button {
+  background: transparent;
+  color: var(--text);
+  border: 0;
+  border-radius: 4px;
+  padding: 6px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.widget-menu button:hover { background: var(--line); }
+
 #app-stage {
   flex: 1 1 auto;
   position: relative;

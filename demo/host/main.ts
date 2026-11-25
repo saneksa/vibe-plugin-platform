@@ -108,6 +108,44 @@ function showFrameError(iid: string, message: string): void {
   container.appendChild(card);
 }
 
+let widgetMenuClose: (() => void) | null = null;
+
+function closeWidgetMenu(): void {
+  if (widgetMenuClose !== null) {
+    document.removeEventListener("click", widgetMenuClose);
+    widgetMenuClose = null;
+  }
+  document.querySelector("[data-widget-menu]")?.remove();
+}
+
+/** Right-click menu for one widget pane; deletion goes through host-core. */
+function showWidgetMenu(iid: string, x: number, y: number): void {
+  const rt = runtime;
+  if (rt === null) return;
+  closeWidgetMenu();
+  const menu = document.createElement("div");
+  menu.className = "widget-menu";
+  menu.dataset.widgetMenu = iid;
+  menu.style.left = `${x}px`;
+  menu.style.top = `${y}px`;
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.dataset.removeWidget = iid;
+  remove.dataset.iid = iid;
+  remove.textContent = "Удалить виджет";
+  remove.addEventListener("click", () => {
+    closeWidgetMenu();
+    rt.fm.unmount(iid);
+    rt.fm.state.removeWidget(iid);
+    rt.frames.delete(iid);
+    renderCanvas();
+  });
+  menu.appendChild(remove);
+  document.body.appendChild(menu);
+  widgetMenuClose = () => closeWidgetMenu();
+  document.addEventListener("click", widgetMenuClose, { once: true });
+}
+
 function renderCanvas(): void {
   const rt = runtime;
   if (rt === null) return;
@@ -118,7 +156,7 @@ function renderCanvas(): void {
     rt.fm.mount(slot, iid);
     const frame = slot.querySelector<HTMLIFrameElement>("iframe");
     if (frame !== null) rt.frames.set(iid, frame);
-  });
+  }, showWidgetMenu);
 }
 
 function closeCurrentAppFrame(): void {
