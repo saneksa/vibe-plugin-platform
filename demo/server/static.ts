@@ -3,9 +3,13 @@ import express, { type Express, type RequestHandler } from "express";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 
-/** Spec §10: exact CSP for plugin static, with network access disabled by default. */
+/**
+ * Plugin-static CSP (spec §10) with network access disabled by default.
+ * `pack` injects the synchronous `window.__VIBE_BOOT__` bootstrap as an inline
+ * script, so the demo needs inline script permission on the plugin origin.
+ */
 export const PLUGIN_CSP =
-  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'none'; frame-ancestors http://localhost:4000";
+  "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'none'; frame-ancestors http://localhost:4000";
 
 /** Plugin listener: every response carries the restrictive isolation headers. */
 export function createPluginApp(pluginsDir: string): Express {
@@ -21,12 +25,25 @@ export function createPluginApp(pluginsDir: string): Express {
   return app;
 }
 
-/** Host listener: Vite middleware in dev, built static (with SPA fallback) otherwise. */
-export function createHostApp(hostDir: string, viteMiddlewares?: RequestHandler[]): Express {
+/**
+ * Host listener: Vite middleware in dev, built static otherwise. Both modes
+ * fall back to the host HTML for browser routes (`/` and `/app/<iid>/<path>`);
+ * the dev HTML references `/host/…` absolutely so its assets resolve from a
+ * deep URL too. API routes are mounted before this app.
+ */
+export function createHostApp(
+  hostDir: string,
+  viteMiddlewares?: RequestHandler[],
+  spaHtml?: string,
+): Express {
   const app = express();
   if (viteMiddlewares) app.use(viteMiddlewares);
   app.use(express.static(hostDir));
   app.get("*", (_req, res, next) => {
+    if (spaHtml !== undefined) {
+      res.type("html").send(spaHtml);
+      return;
+    }
     const index = join(hostDir, "index.html");
     if (existsSync(index)) res.sendFile(index);
     else next();

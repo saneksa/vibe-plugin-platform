@@ -5,7 +5,16 @@ export default defineConfig({
   // Only Playwright specs live here; Vitest suites stay under host/ and server/.
   testMatch: "tests/**/*.{test,spec}.ts",
   timeout: 30_000,
+  expect: { timeout: 10_000 },
   use: {
     baseURL: "http://localhost:4000",
+  },
+  // One command brings up both origins (and fresh archives) for the e2e run.
+  // The conformance rig starts its own two origins on ephemeral ports.
+  webServer: {
+    command: "npm run examples:pack && rm -rf storage && npm run dev",
+    url: "http://localhost:4000/api/plugins",
+    reuseExistingServer: true,
+    timeout: 180_000,
   },
 });

@@ -13,6 +13,7 @@ export interface ShellDeps {
   onUpload(file: File): Promise<UploadResult> | UploadResult;
   onThemeToggle?(): void;
   onUpgrade(pluginId: string, version: string): void;
+  onRollback(pluginId: string, version: string): void;
 }
 
 function compareVersions(a: string, b: string): number {
@@ -86,10 +87,12 @@ export class Shell {
     this.root.addEventListener("click", (event) => {
       const el = (event.target as Element | null)?.closest<HTMLElement>("button");
       if (el === null || el === undefined || !this.root.contains(el)) return;
-      const { addWidget, launch, upgrade, version, themeToggle, widgetsToggle } = el.dataset;
+      const { addWidget, launch, upgrade, rollback, version, themeToggle, widgetsToggle } =
+        el.dataset;
       if (addWidget !== undefined) this.deps.onAddWidget(addWidget);
       else if (launch !== undefined) this.deps.onLaunchApp(launch);
       else if (upgrade !== undefined) this.deps.onUpgrade(upgrade, version ?? "");
+      else if (rollback !== undefined) this.deps.onRollback(rollback, version ?? "");
       else if (themeToggle !== undefined) {
         document.documentElement.classList.toggle("light");
         this.deps.onThemeToggle?.();
@@ -130,18 +133,26 @@ export class Shell {
         .map((dto) => button({ launch: dto.id }, `▶ ${dto.title || dto.id}`)),
     );
 
-    const updatesButtons: HTMLButtonElement[] = [];
+    const versionButtons: HTMLButtonElement[] = [];
     for (const [id, current] of Object.entries(this.active)) {
       const installed = this.versions.filter((dto) => dto.id === id).map((dto) => dto.version);
       const newest = installed.reduce((best, v) => (compareVersions(v, best) > 0 ? v : best), current);
-      if (compareVersions(newest, current) <= 0) continue;
-      updatesButtons.push(
-        button(
-          { upgrade: id, version: newest },
-          `доступно обновление: ${id} ${current} → ${newest}`,
-        ),
-      );
+      const oldest = installed.reduce((best, v) => (compareVersions(v, best) < 0 ? v : best), current);
+      if (compareVersions(newest, current) > 0) {
+        versionButtons.push(
+          button(
+            { upgrade: id, version: newest },
+            `доступно обновление: ${id} ${current} → ${newest}`,
+          ),
+        );
+      }
+      // Older archives stay installed, so the same UI knob performs a rollback.
+      if (compareVersions(oldest, current) < 0) {
+        versionButtons.push(
+          button({ rollback: id, version: oldest }, `Откатить: ${id} ${current} → ${oldest}`),
+        );
+      }
     }
-    updates.replaceChildren(...updatesButtons);
+    updates.replaceChildren(...versionButtons);
   }
 }

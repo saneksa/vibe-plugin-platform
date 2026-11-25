@@ -184,10 +184,23 @@ describe("handleUpload", () => {
     expect(existsSync(join(dest, ID, "2.0.0", "index.html"))).toBe(true);
   });
 
+  it("extracts nested dist/assets members into their own directories", async () => {
+    const { dest, registry } = setup();
+    const result = await handleUpload(
+      archive({ extra: { "dist/bundle.js": "bundle", "assets/icon.svg": "<svg/>" } }),
+      registry,
+      dest,
+    );
+
+    expect(result.status).toBe(201);
+    expect(readFileSync(join(dest, ID, VERSION, "dist", "bundle.js"), "utf8")).toBe("bundle");
+    expect(readFileSync(join(dest, ID, VERSION, "assets", "icon.svg"), "utf8")).toBe("<svg/>");
+  });
+
   it("rejects an invalid manifest with a structured 400", async () => {
     const { dest, registry } = setup();
     const result = await handleUpload(
-      archive({ manifest: { kind: "bad", version: "not-semver" } }),
+      archive({ manifest: { kind: "bad" as PluginManifest["kind"], version: "not-semver" } }),
       registry,
       dest,
     );
@@ -262,7 +275,7 @@ describe("handleUpload", () => {
     const result = await handleUpload(strToU8("not a zip"), registry, dest);
     expect(result.status).toBe(400);
     expect(result.body.code).toBe("INVALID_ARCHIVE");
-    expect(result.body.message.length).toBeGreaterThan(0);
+    expect(result.body.message).toBeTruthy();
     expect(existsSync(join(dest, ID))).toBe(false);
   });
 
@@ -276,7 +289,7 @@ describe("handleUpload", () => {
     expect(result.status).toBe(400);
     expect(typeof result.body.code).toBe("string");
     expect(typeof result.body.message).toBe("string");
-    expect(result.body.message.length).toBeGreaterThan(0);
+    expect(result.body.message).toBeTruthy();
     expect(existsSync(join(dest, ID))).toBe(false);
   });
 });

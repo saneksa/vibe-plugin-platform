@@ -9,6 +9,8 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["*.ts", "host/**/*.ts", "server/**/*.ts", "tests/**/*.ts", "examples/**/*.ts"],
+  // Each plugin example is its own package with its own tsconfig; the demo
+  // typecheck covers only the host, backend and its own tests.
+  "include": ["*.ts", "host/**/*.ts", "server/**/*.ts", "tests/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

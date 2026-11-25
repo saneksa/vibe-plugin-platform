@@ -323,6 +323,23 @@ describe("demo host", () => {
     );
   });
 
+  it("rollback button switches back to an older installed version", async () => {
+    const fx = fixture({
+      versions: [CLOCK, { ...CLOCK, version: "2.0.0" }],
+      active: { clock: "2.0.0" },
+    });
+    vi.stubGlobal("fetch", stubFetch(fx));
+    const fm = boot();
+    await clickAdd("clock");
+
+    await vi.waitFor(() => expect(document.querySelector('[data-rollback="clock"]')).not.toBeNull());
+    expect(document.querySelector<HTMLElement>('[data-rollback="clock"]')?.dataset.version).toBe(
+      "1.2.0",
+    );
+    click('[data-rollback="clock"]');
+    await vi.waitFor(() => expect(fm.state.getLayout()).toMatchObject({ version: "1.2.0" }));
+  });
+
   it("Shell shows the server's human-readable upload error", async () => {
     vi.stubGlobal("fetch", stubFetch(fixture(), 409, "плагин собран под hostAPI 1"));
     boot();

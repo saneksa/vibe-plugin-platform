@@ -133,7 +133,12 @@ function appUrl(iid: string, path: string): string {
   return tail === "" ? `/app/${iid}` : `/app/${iid}/${tail}`;
 }
 
-function showApp(iid: string, path: string | undefined, push: boolean): void {
+function showApp(
+  iid: string,
+  path: string | undefined,
+  push: boolean,
+  replace = false,
+): void {
   const rt = runtime;
   if (rt === null) return;
   const record = rt.fm.state.getInstances()[iid];
@@ -153,7 +158,10 @@ function showApp(iid: string, path: string | undefined, push: boolean): void {
   document.getElementById(CANVAS_ID)?.classList.add("hidden");
   document.getElementById(APP_STAGE_ID)?.classList.remove("hidden");
   const url = appUrl(iid, route);
-  if (push && window.location.pathname !== url) window.history.pushState(null, "", url);
+  if (push && window.location.pathname !== url) {
+    if (replace) window.history.replaceState(null, "", url);
+    else window.history.pushState(null, "", url);
+  }
   post(iid, { type: "route", iid, path: route });
 }
 
@@ -201,6 +209,9 @@ export function boot(opts: BootOptions = {}): FrameManager {
     registry,
     store: window.localStorage,
     hostVersion: HOST_VERSION,
+    // A plugin's navigate envelope must be echoed back as `route` (spec §12):
+    // only the host knows the full /app/<iid>/<path> URL.
+    onNavigate: (iid, path, replace) => showApp(iid, path, true, replace),
   });
   const fm = createFrameManager({ adapter });
   const rt: Runtime = {
@@ -213,6 +224,21 @@ export function boot(opts: BootOptions = {}): FrameManager {
   };
   runtime = rt;
   setCanvasResizeHandler((path, ratio) => fm.state.resize(path, ratio));
+
+  const switchVersion = (pluginId: string, version: string): void => {
+    void (async () => {
+      await registry.setActive(pluginId, version);
+      await fm.upgrade(pluginId, version);
+      syncFramesFromDom();
+    })()
+      .catch((error: unknown) => {
+        rt.shell.showStatus(`Не удалось обновить плагин: ${errorMessage(error)}`, "error");
+      })
+      .then(() => rt.shell.refresh())
+      .catch((error: unknown) => {
+        rt.shell.showStatus(`Не удалось обновить данные реестра: ${errorMessage(error)}`, "error");
+      });
+  };
 
   rt.shell = new Shell(
     {
@@ -235,20 +261,8 @@ export function boot(opts: BootOptions = {}): FrameManager {
       onLaunchApp: (pluginId) => rt.launcher.open(pluginId),
       onUpload: (file) => registry.upload(file),
       onThemeToggle: () => undefined,
-      onUpgrade: (pluginId, version) => {
-        void (async () => {
-          await registry.setActive(pluginId, version);
-          await fm.upgrade(pluginId, version);
-          syncFramesFromDom();
-        })()
-          .catch((error: unknown) => {
-            rt.shell.showStatus(`Не удалось обновить плагин: ${errorMessage(error)}`, "error");
-          })
-          .then(() => rt.shell.refresh())
-          .catch((error: unknown) => {
-            rt.shell.showStatus(`Не удалось обновить данные реестра: ${errorMessage(error)}`, "error");
-          });
-      },
+      onUpgrade: switchVersion,
+      onRollback: switchVersion,
     },
     shellRoot,
   );

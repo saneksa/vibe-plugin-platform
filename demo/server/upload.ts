@@ -3,7 +3,7 @@
  * written to disk; only a fully verified archive is extracted and registered.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
   checkHostApiGate,
   computeChecksums,
@@ -156,7 +156,11 @@ export async function handleUpload(
   const target = join(destDir, manifest.id, manifest.version);
   mkdirSync(target, { recursive: true });
   for (const [name, bytes] of Object.entries(files)) {
-    if (name !== "checksums.json") writeFileSync(join(target, name), bytes);
+    if (name === "checksums.json") continue;
+    // Real archives carry `dist/` and `assets/` members; create their parents.
+    const file = join(target, name);
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, bytes);
   }
 
   const descriptor: PluginDescriptorDTO = {

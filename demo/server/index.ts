@@ -2,6 +2,7 @@
  * Two listeners = two origins: host + API on :4000, plugin static on :4001.
  * `npm run dev` runs this file through tsx and starts both in one process.
  */
+import { readFileSync } from "node:fs";
 import { createServer as createHttpServer, type Server } from "node:http";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,7 +21,14 @@ export interface CreateServerOptions {
   storageDir?: string;
   hostDir?: string;
   /** Vite dev middleware; when present it serves the host instead of built static. */
-  vite?: { middlewares: RequestHandler; close(): Promise<void> };
+  vite?: {
+    middlewares: RequestHandler;
+    close(): Promise<void>;
+    /** Vite's HTML transform, used for the SPA fallback at `/` and `/app/**`. */
+    transformIndexHtml?(url: string, html: string): Promise<string> | string;
+  };
+  /** Dev host entry; defaults to `host/index.html` next to the server. */
+  hostHtmlPath?: string;
 }
 
 export interface ServerHandle {
@@ -62,10 +70,21 @@ export async function createServer(opts: CreateServerOptions): Promise<ServerHan
   const storageDir = opts.storageDir ?? resolve("storage");
   const hostDir = opts.hostDir ?? resolve("dist");
 
+  let spaHtml: string | undefined;
+  if (opts.vite) {
+    const htmlPath = opts.hostHtmlPath ?? resolve("host/index.html");
+    // Vite resolves root-relative imports against its root (demo/), so the
+    // host entry must be referenced absolutely from a deep SPA URL as well.
+    const raw = readFileSync(htmlPath, "utf8").replace(/(href|src)="\.\//g, '$1="/host/');
+    spaHtml = opts.vite.transformIndexHtml
+      ? await opts.vite.transformIndexHtml("/", raw)
+      : raw;
+  }
+
   const hostApp = express();
   hostApp.use(createApiRouter({ registry: opts.registry, storageDir }));
   hostApp.use(apiErrorHandler);
-  hostApp.use(createHostApp(hostDir, opts.vite ? [opts.vite.middlewares] : undefined));
+  hostApp.use(createHostApp(hostDir, opts.vite ? [opts.vite.middlewares] : undefined, spaHtml));
 
   const pluginApp = createPluginApp(resolve(storageDir, "plugins"));
 
@@ -98,8 +117,15 @@ async function main(): Promise<void> {
       ? undefined
       : await (await import("vite")).createServer({
           root: process.cwd(),
-          server: { middlewareMode: true },
-          appType: "spa",
+          server: {
+            middlewareMode: true,
+            // Archive extraction writes into storage/; those files are not
+            // host sources and must not trigger a Vite full reload.
+            watch: { ignored: ["**/storage/**"] },
+          },
+          // The explicit fallback below serves host/index.html for SPA routes;
+          // Vite's own SPA middleware would look for demo/index.html instead.
+          appType: "custom",
         });
 
   const server = await createServer({
@@ -109,7 +135,11 @@ async function main(): Promise<void> {
     storageDir,
     hostDir: resolve(process.cwd(), "dist"),
     vite: vite
-      ? { middlewares: vite.middlewares as RequestHandler, close: () => vite.close() }
+      ? {
+          middlewares: vite.middlewares as RequestHandler,
+          close: () => vite.close(),
+          transformIndexHtml: (url, html) => vite.transformIndexHtml(url, html),
+        }
       : undefined,
   });
   console.log(`host + API: http://localhost:${server.portHost}`);

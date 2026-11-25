@@ -180,7 +180,7 @@ describe("createServer", () => {
     expect(res.status).toBe(200);
     expect(res.body).toBe("<html>plugin</html>");
     expect(res.headers["content-security-policy"]).toBe(
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'none'; frame-ancestors http://localhost:4000",
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'none'; frame-ancestors http://localhost:4000",
     );
     expect(res.headers["x-content-type-options"]).toBe("nosniff");
     expect(res.headers["cross-origin-resource-policy"]).toBe("same-origin");
