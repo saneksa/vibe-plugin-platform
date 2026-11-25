@@ -1,7 +1,8 @@
 /**
  * The single owner of both persistent stores: `host.instances.v1` and the BSP
- * tree in `host.layout.v1`. All storage is reached through an injected port,
- * so this state machine is DOM-free and can be driven by fakes in conformance.
+ * tree in `host.layout.v1`, plus the current-app pointer in
+ * `host.currentApp.v1`. All storage is reached through an injected port, so
+ * this state machine is DOM-free and can be driven by fakes in conformance.
  */
 
 import {
@@ -26,6 +27,7 @@ export interface KeyValueStore {
 
 export const INSTANCES_KEY = "host.instances.v1";
 export const LAYOUT_KEY = "host.layout.v1";
+export const CURRENT_APP_KEY = "host.currentApp.v1";
 
 type Leaf = Extract<LayoutNode, { type: "leaf" }>;
 
@@ -86,11 +88,13 @@ export class HostState {
     this.restore();
   }
 
-  /** Reloads both stores. The current app is a runtime detail, re-established by the router. */
+  /** Reloads both stores and the active-app pointer, so closeApp survives a reload. */
   restore(): void {
     this.instances = parseRegistry(this.store.getItem(INSTANCES_KEY));
     this.layout = restoreTree(this.store.getItem(LAYOUT_KEY));
-    this.currentAppIid = null;
+    const savedIid = this.store.getItem(CURRENT_APP_KEY);
+    this.currentAppIid =
+      savedIid !== null && this.instances[savedIid]?.kind === "app" ? savedIid : null;
   }
 
   addWidget(pluginId: string, version: string): InstanceRecord {
@@ -173,10 +177,9 @@ export class HostState {
     };
 
     visitLeaves(this.layout, (leaf) => noteStale(leaf.pluginId, leaf.iid, leaf.version));
-    for (const record of Object.values(this.instances)) {
-      if (record.kind === "app") {
-        noteStale(record.pluginId, record.iid, record.version);
-      }
+    const activeApp = this.currentAppIid === null ? undefined : this.instances[this.currentAppIid];
+    if (activeApp?.kind === "app") {
+      noteStale(activeApp.pluginId, activeApp.iid, activeApp.version);
     }
 
     for (const pluginId of stalePlugins) {
@@ -188,5 +191,6 @@ export class HostState {
   private persist(): void {
     this.store.setItem(INSTANCES_KEY, JSON.stringify(this.instances));
     this.store.setItem(LAYOUT_KEY, this.layout === null ? "" : serialize(this.layout));
+    this.store.setItem(CURRENT_APP_KEY, this.currentAppIid ?? "");
   }
 }

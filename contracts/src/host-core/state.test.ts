@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  CURRENT_APP_KEY,
   HostState,
   INSTANCES_KEY,
   LAYOUT_KEY,
@@ -184,6 +185,34 @@ describe("HostState registry and layout ownership", () => {
     expect(st.getLayout()).toBe(layoutBefore);
     expect(st.reconcile({ clock: "1.2.0", notes: "1.1.0" })).toEqual([]);
     expect(findLeaf(st.getLayout(), widget.iid)?.version).toBe("1.2.0");
+  });
+
+  it("closeApp after reload closes the app opened before it", () => {
+    const st = new HostState(store);
+    const widget = st.addWidget("clock", "1.2.0");
+    const app = st.openApp("notes", "1.0.0", "/list");
+    expect(store.getItem(CURRENT_APP_KEY)).toBe(app.iid);
+
+    const reloaded = new HostState(store);
+    // A persisted app record stays reachable by iid for deep-links (T17).
+    expect(reloaded.getInstances()[app.iid]).toEqual(app);
+    reloaded.closeApp();
+
+    expect(reloaded.getInstances()[app.iid]).toBeUndefined();
+    expect(reloaded.reconcile({ notes: "2.0.0" })).toEqual([]);
+    expect(new HostState(store).getInstances()[app.iid]).toBeUndefined();
+    expect(store.getItem(CURRENT_APP_KEY)).toBe("");
+    expect(findLeaf(reloaded.getLayout(), widget.iid)).not.toBeNull();
+  });
+
+  it("reconcile ignores stale app records that are not active", () => {
+    const st = new HostState(store);
+    const inactive = st.openApp("notes", "1.0.0", "/list");
+    const active = st.openApp("mail", "1.0.0", "/inbox");
+
+    expect(st.reconcile({ notes: "2.0.0", mail: "2.0.0" })).toEqual([active.iid]);
+    expect(st.getInstances()[inactive.iid].version).toBe("1.0.0");
+    expect(st.reconcile({ notes: "3.0.0", mail: "2.0.0" })).toEqual([]);
   });
 
   it("reconcile ignores plugins without an active version", () => {
