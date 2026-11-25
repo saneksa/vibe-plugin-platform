@@ -134,6 +134,40 @@ describe("runCoreConformance", () => {
     expect(sentOf(handle).filter((e) => e.type === "rpc.result")).toEqual([]);
   });
 
+  it("a navigate envelope requires a ready handle with the navigate capability", () => {
+    const adapter = new FixtureAdapter();
+    const schedule = new FakeScheduler().schedule;
+    const router = new MessageRouter({ adapter, policy: getPolicy(), schedule });
+
+    // Still in handshake: no navigation before hello.
+    const early = mount(adapter, "nav-early", "2.0.0");
+    deliver(router, early, { type: "navigate", iid: "nav-early", path: "/too-early" });
+    expect(adapter.navigations).toEqual([]);
+
+    // Ready, but the app capability was not granted.
+    const denied = mount(adapter, "nav-denied", "2.0.0");
+    deliver(router, denied, hello("nav-denied", "2", []));
+    deliver(router, denied, { type: "navigate", iid: "nav-denied", path: "/denied" });
+    expect(adapter.navigations).toEqual([]);
+
+    // Ready with the cap: exactly one call with (iid, path, replace ?? false).
+    const allowed = mount(adapter, "nav-allowed", "2.0.0");
+    deliver(router, allowed, hello("nav-allowed", "2", ["navigate"]));
+    deliver(router, allowed, {
+      type: "navigate",
+      iid: "nav-allowed",
+      path: "/settings/general",
+      replace: true,
+    });
+    expect(adapter.navigations).toEqual([
+      { iid: "nav-allowed", path: "/settings/general", replace: true },
+    ]);
+
+    deliver(router, allowed, { type: "navigate", iid: "nav-allowed", path: "/home" });
+    expect(adapter.navigations).toHaveLength(2);
+    expect(adapter.navigations[1]).toEqual({ iid: "nav-allowed", path: "/home", replace: false });
+  });
+
   it("default v1 path dispatches through adapter.dispatchRpc with hello-derived context", async () => {
     const adapter = new FixtureAdapter();
     const handle = mount(adapter, "v1-i1", "1.2.0");

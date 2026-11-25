@@ -427,21 +427,29 @@ export function runCoreConformance(opts: CoreConformanceOptions): ConformanceRes
     {
       name: "navigate-envelope",
       run: () => {
-        const { adapter, router, handle } = setup("nav-i1", "clock", "2.0.0");
-        deliver(router, handle, hello("nav-i1", "2", ["navigate"]));
+        const { adapter, router, handle, frameHost } = setup("nav-i1", "clock", "2.0.0");
         const nav: Envelope = { type: "navigate", iid: "nav-i1", path: "/settings/general", replace: true };
 
         deliver(router, handle, nav, { origin: "http://evil.test" });
         deliver(router, handle, nav, { source: { id: "foreign" } });
-        deepEqual(adapter.navigations, [], "forged navigate envelopes are dropped");
+        deliver(router, handle, nav); // handshake: no navigation before hello
+        deepEqual(adapter.navigations, [], "forged and pre-handshake navigate envelopes are dropped");
 
+        deliver(router, handle, hello("nav-i1", "2", []));
         deliver(router, handle, nav);
+        deepEqual(adapter.navigations, [], "navigate without the cap is dropped");
+
+        const allowed = frameOf(adapter, frameHost, "nav-cap", "clock", "2.0.0");
+        deliver(router, allowed, hello("nav-cap", "2", ["navigate"]));
+        deliver(router, allowed, {
+          type: "navigate", iid: "nav-cap", path: "/settings/general", replace: true,
+        });
         deepEqual(adapter.navigations, [
-          { iid: "nav-i1", path: "/settings/general", replace: true },
-        ], "navigate envelope drives onNavigate");
-        deliver(router, handle, { type: "navigate", iid: "nav-i1", path: "/home" });
+          { iid: "nav-cap", path: "/settings/general", replace: true },
+        ], "navigate envelope drives onNavigate exactly once");
+        deliver(router, allowed, { type: "navigate", iid: "nav-cap", path: "/home" });
         equal(adapter.navigations[1].replace, false, "replace defaults to false");
-        equal(sentOf(handle).filter((e) => e.type === "rpc.result").length, 0, "navigate is not an rpc");
+        equal(sentOf(allowed).filter((e) => e.type === "rpc.result").length, 0, "navigate is not an rpc");
       },
     },
     {
