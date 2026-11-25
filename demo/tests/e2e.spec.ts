@@ -61,8 +61,8 @@ test("§16 full scenario: upload → two widgets → upgrade → rollback → re
   await page.goto("/");
   await expect(page.locator(".brand")).toBeVisible();
 
-  // 1. Upload clock 1.2.0. A reused demo server may already have 2.0.0 active;
-  //    the real rollback button brings the scenario back to its starting state.
+  // 1. Upload clock 1.2.0. The test server starts with a clean registry;
+  //    this branch is a guard for an unexpectedly pre-populated one.
   await upload(CLOCK_V1);
   const rollback = page.locator('[data-rollback="clock"]');
   if ((await rollback.count()) > 0) {

@@ -14,7 +14,10 @@ export default defineConfig({
   webServer: {
     command: "npm run examples:pack && rm -rf storage && npm run dev",
     url: "http://localhost:4000/api/plugins",
-    reuseExistingServer: true,
+    // Tests must own the server: `command` clears the registry before start.
+    // Reusing a manually started `npm run dev` would skip that cleanup and
+    // leave stale versions behind, making the §16 scenario non-deterministic.
+    reuseExistingServer: false,
     timeout: 180_000,
   },
 });
