@@ -271,6 +271,27 @@ describe("sdk hostApi", () => {
     emit({ type: "event", iid, topic: "theme.changed", value: { mode: "light" } });
     expect(cb).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps a topic subscribed until the last local callback is removed", () => {
+    const iid = launch();
+    ready(iid);
+    const first = vi.fn();
+    const second = vi.fn();
+
+    capturedHost?.on("tick", first);
+    capturedHost?.on("tick", second);
+    expect(sent.filter((e) => e.type === "rpc" && e.method === "events.on")).toHaveLength(1);
+
+    capturedHost?.off("tick", first);
+    expect(sent.filter((e) => e.type === "rpc" && e.method === "events.off")).toHaveLength(0);
+
+    emit({ type: "event", iid, topic: "tick", value: 7 });
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledWith(7);
+
+    capturedHost?.off("tick", second);
+    expect(sent.filter((e) => e.type === "rpc" && e.method === "events.off")).toHaveLength(1);
+  });
 });
 
 describe("sdk routing", () => {

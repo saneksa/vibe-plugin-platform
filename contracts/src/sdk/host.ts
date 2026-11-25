@@ -73,23 +73,25 @@ export function createHost(deps: HostDeps): HostRuntime {
     },
     log: (level, ...args) => fire("log", "host.log", { level, args }),
     // Subscriptions are kept locally; the host router fans out `event` envelopes.
-    // Registering with the host makes the router publish those topics at all.
+    // The host tracks topics (not callbacks), so notify it only on the first
+    // subscriber and the last removal, keeping both subscription states in sync.
     on: (topic, cb) => {
-      let callbacks = listeners.get(topic);
+      const callbacks = listeners.get(topic);
       if (callbacks === undefined) {
-        callbacks = new Set();
-        listeners.set(topic, callbacks);
+        listeners.set(topic, new Set([cb]));
+        fire("events.read", "events.on", topic);
+      } else {
+        callbacks.add(cb);
       }
-      callbacks.add(cb);
-      fire("events.read", "events.on", topic);
     },
     off: (topic, cb) => {
       const callbacks = listeners.get(topic);
-      if (callbacks !== undefined) {
-        callbacks.delete(cb);
-        if (callbacks.size === 0) listeners.delete(topic);
+      if (callbacks === undefined) return;
+      callbacks.delete(cb);
+      if (callbacks.size === 0) {
+        listeners.delete(topic);
+        fire("events.read", "events.off", topic);
       }
-      fire("events.read", "events.off", topic);
     },
     registry: {
       list: () => guarded("registry.read", "registry.list"),
