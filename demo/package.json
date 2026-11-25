@@ -1,0 +1,26 @@
+{
+  "name": "vibe-plugin-demo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "node --watch server/index.ts",
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@vibe/plugin-contracts": "file:../contracts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "@types/node": "^24.0.0",
+    "express": "^4.21.2",
+    "fflate": "^0.8.2",
+    "jsdom": "^26.1.0",
+    "vite": "^7.1.0",
+    "vitest": "^5.1.1"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "name": "@vibe/plugin-contracts",
+  "version": "2.0.0",
+  "description": "Versioned contracts for the Vibe plugin platform: protocol, manifest, SDK, host-core, conformance and CLI.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "vibe-plugin": "cli/index.mjs"
+  },
+  "exports": {
+    "./protocol": "./src/protocol/index.ts",
+    "./manifest": "./src/manifest/index.ts",
+    "./sdk": "./src/sdk/index.ts",
+    "./host-core": "./src/host-core/index.ts",
+    "./conformance": "./conformance/index.ts",
+    "./cli": "./cli/index.mjs",
+    "./compatibility.json": "./compatibility.json"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "check:boundary": "node scripts/check-boundary.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "@types/node": "^24.0.0",
+    "fflate": "^0.8.2",
+    "jsdom": "^26.1.0",
+    "typescript": "^5.9.0",
+    "vitest": "^5.1.1"
+  }
+}
