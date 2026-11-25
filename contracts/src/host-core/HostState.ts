@@ -135,6 +135,19 @@ export class HostState {
     this.persist();
   }
 
+  /**
+   * Rehydrates a deep-linked app without allocating a new iid, so a later
+   * `closeApp()`/`reconcile()` targets the record the URL pointed at (T17).
+   */
+  activateApp(iid: string): void {
+    const record = this.instances[iid];
+    if (record === undefined || record.kind !== "app") {
+      throw new Error(`not an app instance: ${iid}`);
+    }
+    this.currentAppIid = iid;
+    this.persist();
+  }
+
   /** Updates the version cache of widget leaves and of every matching record. */
   setVersion(pluginId: string, version: string): void {
     if (this.layout !== null) {
