@@ -40,12 +40,12 @@ test("§16 full scenario: upload → two widgets → upgrade → rollback → re
 }) => {
   test.setTimeout(240_000);
 
-  async function upload(path: string): Promise<void> {
+  async function upload(path: string, expectedButton?: string): Promise<void> {
     await page.locator("input[data-upload]").setInputFiles(path);
     await expect(page.locator("[data-upload-status]")).toHaveText("загружено");
-    // Upload intentionally does not refresh the registry UI; a real reload does.
-    await page.reload();
-    await expect(page.locator(".brand")).toBeVisible();
+    // A successful upload refreshes the shell in place (spec §11). The caller
+    // may name a registry-derived button that must appear before any reload.
+    if (expectedButton !== undefined) await expect(page.locator(expectedButton)).toBeVisible();
   }
 
   async function addWidget(pluginId: string, expectedCount: number): Promise<void> {
@@ -90,9 +90,9 @@ test("§16 full scenario: upload → two widgets → upgrade → rollback → re
   }
   const before = await layoutSnapshot(page);
 
-  // 4. Upload the new version, then switch via the «доступно обновление» button.
-  await upload(CLOCK_V2);
-  await expect(page.locator('[data-upgrade="clock"]')).toBeVisible();
+  // 4. Upload the new version: «доступно обновление» must appear BEFORE any
+  //    reload, then the switch happens via that button.
+  await upload(CLOCK_V2, '[data-upgrade="clock"]');
   await page.locator('[data-upgrade="clock"]').click();
   await expect(page.locator('[data-upgrade="clock"]')).toHaveCount(0);
   for (const iid of iids) {
@@ -130,7 +130,7 @@ test("§16 full scenario: upload → two widgets → upgrade → rollback → re
   expect(resized).not.toEqual(before);
 
   // 7. Fullscreen notes-app with virtual routing, back/forward and deep reload.
-  await upload(NOTES);
+  await upload(NOTES, '[data-launch="notes-app"]');
   await page.locator('[data-launch="notes-app"]').click();
   const notes = page.frameLocator("#app-frame iframe");
   await expect(notes.locator(".notes-route")).toHaveText("route: /");
@@ -158,7 +158,7 @@ test("§16 full scenario: upload → two widgets → upgrade → rollback → re
 
   // 8. A hostile widget must not take the host (or its neighbours) down.
   const beforeHostile = iids.length;
-  await upload(HOSTILE);
+  await upload(HOSTILE, '[data-add-widget="hostile-widget"]');
   await addWidget("hostile-widget", beforeHostile + 1);
   const allIids = await page
     .locator("#vibe-canvas .frame-slot")

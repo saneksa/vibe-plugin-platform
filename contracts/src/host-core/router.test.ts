@@ -109,6 +109,7 @@ type Timer = { fn: () => void; ms: number; cancelled: boolean };
 function makeRouter(opts: {
   adapter?: FakeAdapter;
   adaptV1?: (method: string, params: unknown, ctx: RpcContext) => Promise<unknown>;
+  onFrameError?: (handle: FrameHandle, message: string) => void;
 } = {}) {
   const adapter = opts.adapter ?? new FakeAdapter();
   const timers: Timer[] = [];
@@ -132,6 +133,7 @@ function makeRouter(opts: {
     policy: POLICY,
     schedule,
     ...(opts.adaptV1 ? { adaptV1: opts.adaptV1 } : {}),
+    ...(opts.onFrameError ? { onFrameError: opts.onFrameError } : {}),
   });
   return { router, adapter, timers, fire };
 }
@@ -237,9 +239,98 @@ describe("MessageRouter message validation", () => {
     ).not.toThrow();
     expect(sourceOf(h).sent).toEqual([]);
   });
+
+  it("drops hello with wants:null instead of throwing in the host listener", () => {
+    const { router, adapter } = makeRouter();
+    const h = handle();
+    expect(() =>
+      router.accept({
+        origin: h.expectedOrigin,
+        source: h.source,
+        data: { type: "hello", iid: "i1", api: "2", sdk: "2.1.0", plugin: { id: "clock", version: "1.2.0" }, wants: null },
+        handle: h,
+      }),
+    ).not.toThrow();
+    expect(adapter.grants).toHaveLength(0);
+    expect(sourceOf(h).sent).toEqual([]);
+  });
+
+  it("drops a navigate envelope with a non-string path", () => {
+    const { router, adapter } = makeRouter();
+    const h = handle();
+    router.accept({ origin: h.expectedOrigin, source: h.source, data: hello("i1", "2"), handle: h });
+    expect(() =>
+      router.accept({
+        origin: h.expectedOrigin,
+        source: h.source,
+        data: { type: "navigate", iid: "i1", path: 42 },
+        handle: h,
+      }),
+    ).not.toThrow();
+    expect(adapter.navigations).toEqual([]);
+  });
+
+  it("replies with an error envelope when an adapter method throws", () => {
+    const adapter = new FakeAdapter();
+    adapter.grantCapabilities = () => {
+      throw new TypeError("adapter exploded");
+    };
+    const { router } = makeRouter({ adapter });
+    const h = handle();
+    expect(() =>
+      router.accept({ origin: h.expectedOrigin, source: h.source, data: hello("i1", "2"), handle: h }),
+    ).not.toThrow();
+    expect(sourceOf(h).sent).toEqual([
+      {
+        type: "error",
+        iid: "i1",
+        message: "host rejected hello: adapter exploded",
+      },
+    ]);
+    expect(h.state).toBe("handshake");
+  });
 });
 
 describe("MessageRouter handshake", () => {
+  it("fails a mounted frame that never sends hello after the handshake deadline", () => {
+    const errors: Array<{ iid: string; message: string }> = [];
+    const { router, adapter, timers, fire } = makeRouter({
+      onFrameError: (handle, message) => errors.push({ iid: handle.iid, message }),
+    });
+    const h = handle();
+
+    router.mount(h);
+    expect(timers.map((t) => t.ms)).toEqual([10000]);
+    fire(10000);
+
+    expect(h.state).toBe("failed");
+    expect(sourceOf(h).sent.at(-1)).toMatchObject({
+      type: "error",
+      iid: "i1",
+      message: expect.stringContaining("handshake timed out"),
+    });
+    expect(errors).toEqual([
+      { iid: "i1", message: expect.stringContaining("handshake timed out") },
+    ]);
+    expect(adapter.grants).toHaveLength(0);
+
+    // A late hello must not revive the pane.
+    router.accept({ origin: h.expectedOrigin, source: h.source, data: hello("i1", "2"), handle: h });
+    expect(h.state).toBe("failed");
+    expect(sourceOf(h).sent).toHaveLength(1);
+  });
+
+  it("cancels the handshake deadline once hello is accepted", () => {
+    const { router, timers, fire } = makeRouter();
+    const h = handle();
+    router.mount(h);
+    router.accept({ origin: h.expectedOrigin, source: h.source, data: hello("i1", "2"), handle: h });
+    expect(timers.map((t) => t.cancelled)).toEqual([true]);
+    expect(h.state).toBe("ready");
+    fire(10000);
+    expect(sourceOf(h).sent.filter((e) => e.type === "error")).toEqual([]);
+  });
+
   it("grants requested caps and sends ready from the injected policy and adapter meta", () => {
     const { router, adapter } = makeRouter();
     const h = handle();

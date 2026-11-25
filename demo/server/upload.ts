@@ -3,7 +3,7 @@
  * written to disk; only a fully verified archive is extracted and registered.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import {
   checkHostApiGate,
   computeChecksums,
@@ -152,8 +152,14 @@ export async function handleUpload(
   const checksumError = checkChecksums(files, names);
   if (checksumError !== undefined) return fail(400, "CHECKSUM_MISMATCH", checksumError);
 
-  // 7. Only now extract, register and persist.
-  const target = join(destDir, manifest.id, manifest.version);
+  // 7. Only now extract, register and persist. The validator already enforces
+  //    safe id/version segments; this containment assertion is the last line of
+  //    defence before anything touches the filesystem.
+  const destRoot = resolve(destDir);
+  const target = resolve(destDir, manifest.id, manifest.version);
+  if (target !== destRoot && !target.startsWith(destRoot + sep)) {
+    return fail(400, "UNSAFE_PLUGIN_PATH", `plugin path escapes the destination: ${target}`);
+  }
   mkdirSync(target, { recursive: true });
   for (const [name, bytes] of Object.entries(files)) {
     if (name === "checksums.json") continue;

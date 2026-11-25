@@ -54,6 +54,24 @@ describe("protocol", () => {
     expect(() => decodeEnvelope("not json")).toThrow();
   });
 
+  it("rejects malformed envelope-shaped fields before any host dispatch", () => {
+    const hello = { iid: "i1", api: "2", sdk: "2.1.0", plugin: { id: "a", version: "1.0" }, wants: [] };
+    expect(() => decodeEnvelope({ type: "hello", ...hello, wants: null })).toThrow(/hello.wants/);
+    expect(() => decodeEnvelope({ type: "hello", ...hello, wants: [1] })).toThrow(/hello.wants/);
+    expect(() => decodeEnvelope({ type: "hello", ...hello, api: "2.4" })).toThrow(/hello.api/);
+    expect(() => decodeEnvelope({ type: "ready", iid: "i1", api: "2.4", caps: [], deprecated: [] })).toThrow(/ready.api/);
+    expect(() => decodeEnvelope({ type: "rpc", iid: "i1", id: 1, api: "1.2", method: "theme.get" })).toThrow(/rpc.api/);
+    expect(() => decodeEnvelope({ type: "rpc", iid: "i1", id: 1, api: "2", method: "" })).toThrow(/rpc.method/);
+    expect(() => decodeEnvelope({ type: "event", iid: "i1", topic: 7, value: 1 })).toThrow(/event.topic/);
+    expect(() => decodeEnvelope({ type: "navigate", iid: "i1", path: 42 })).toThrow(/navigate.path/);
+    expect(() => decodeEnvelope({ type: "navigate", iid: "i1", path: "" })).toThrow(/navigate.path/);
+    expect(() => decodeEnvelope({ type: "navigate", iid: "i1", path: "/", replace: "yes" })).toThrow(/navigate.replace/);
+    // Legitimate shapes still round-trip (including an omitted replace flag).
+    expect(decodeEnvelope({ type: "navigate", iid: "i1", path: "/" })).toEqual({
+      type: "navigate", iid: "i1", path: "/",
+    });
+  });
+
   it("selects the current adapter for the current major", () => {
     expect(selectAdapter("2", getPolicy())).toBe("current");
   });

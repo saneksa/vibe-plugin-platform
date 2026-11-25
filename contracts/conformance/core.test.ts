@@ -13,6 +13,7 @@ const SANDBOX = "allow-scripts allow-same-origin allow-forms";
 
 const ALL_CASES = [
   "envelope-roundtrip",
+  "handshake-timeout",
   "major-gate-409",
   "v1-adapter-in-deprecation-window",
   "append-only-minor",

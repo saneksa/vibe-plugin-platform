@@ -32,6 +32,38 @@ describe("validateManifest", () => {
     expect(validateManifest({ ...validManifest, version: "nope" }).ok).toBe(false);
   });
 
+  it("keeps the documented plugin ids valid", () => {
+    for (const id of ["com.example.clock", "clock", "notes-app", "clock-react", "hostile-widget"]) {
+      expect(validateManifest({ ...validManifest, id }).ok).toBe(true);
+    }
+  });
+
+  it("rejects traversal and non-segment ids (the id becomes a directory name)", () => {
+    for (const id of [
+      "../../etc",
+      "../evil",
+      "a/b",
+      "a\\b",
+      "a..b",
+      "a b",
+      ".hidden",
+      "id\nmalicious",
+      "/abs",
+      "C:evil",
+    ]) {
+      const result = validateManifest({ ...validManifest, id });
+      expect(result.ok, `id ${JSON.stringify(id)} must be rejected`).toBe(false);
+      if (!result.ok) expect(result.errors.join(" ")).toContain("id must be a safe");
+    }
+  });
+
+  it("rejects traversal in version, which is also part of the extraction path", () => {
+    for (const version of ["../../evil", "1/2/3", "1\\2\\3", "1.2.3\n"]) {
+      const result = validateManifest({ ...validManifest, version });
+      expect(result.ok, `version ${JSON.stringify(version)} must be rejected`).toBe(false);
+    }
+  });
+
   it("rejects a wrong schema, kind, sdk version and hostApi range", () => {
     expect(validateManifest({ ...validManifest, schema: 2 }).ok).toBe(false);
     expect(validateManifest({ ...validManifest, kind: "gadget" }).ok).toBe(false);

@@ -17,6 +17,9 @@ export type ValidationResult =
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const WINDOWS_DRIVE = /^[A-Za-z]:/;
 const PARENT_SEGMENT = /(^|\/)\.\.(\/|$)/;
+/** Plugin ids become a directory name below storage/plugins: keep them single-segment. */
+const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const CONTROL_CHAR = /[\u0000-\u001f\u007f]/;
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -24,6 +27,22 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
+}
+
+/** Containment rule shared by every manifest field used inside an extraction path. */
+function isContainedSegment(value: unknown): value is string {
+  return (
+    isNonEmptyString(value) &&
+    !value.includes("/") &&
+    !value.includes("\\") &&
+    !value.includes("..") &&
+    !WINDOWS_DRIVE.test(value) &&
+    !CONTROL_CHAR.test(value)
+  );
+}
+
+function isSafeId(value: unknown): value is string {
+  return isContainedSegment(value) && SAFE_ID.test(value);
 }
 
 function isSize(value: unknown): boolean {
@@ -50,7 +69,9 @@ export function validateManifest(input: unknown): ValidationResult {
   }
 
   if (input.schema !== MANIFEST_SCHEMA) errors.push(`schema must be ${MANIFEST_SCHEMA}`);
-  if (!isNonEmptyString(input.id)) errors.push("id must be a non-empty string");
+  if (!isSafeId(input.id)) {
+    errors.push("id must be a safe single-segment identifier (letters, digits, '.', '_', '-'; no '..')");
+  }
   if (typeof input.kind !== "string" || !MANIFEST_KINDS.includes(input.kind as ManifestKind)) {
     errors.push("kind must be widget or app");
   }
@@ -59,6 +80,10 @@ export function validateManifest(input: unknown): ValidationResult {
     if (typeof value !== "string" || !SEMVER.test(value)) {
       errors.push(`${field} must be a semver version`);
     }
+  }
+  // `version` is also a directory component of the extraction target.
+  if (!isContainedSegment(input.version)) {
+    errors.push("version must be a safe single-segment path component");
   }
   if (hostApiMajor(input.hostApi) === null) {
     errors.push("hostApi must be a single-major semver range");

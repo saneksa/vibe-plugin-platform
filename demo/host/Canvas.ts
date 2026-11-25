@@ -75,6 +75,19 @@ function renderNode(
   divider.dataset.path = path;
   divider.setAttribute("role", "separator");
   divider.addEventListener("pointerdown", (event: MouseEvent) => {
+    // Keep pointermove/pointerup flowing to this listener even when the cursor
+    // crosses a plugin iframe; otherwise a stale drag handler survives and
+    // silently changes the layout on the next click.
+    if (typeof divider.setPointerCapture === "function") {
+      const pointerId = (event as PointerEvent).pointerId;
+      if (pointerId !== undefined) {
+        try {
+          divider.setPointerCapture(pointerId);
+        } catch {
+          // Older DOM shims have no capture support; the drag still works.
+        }
+      }
+    }
     const rect = split.getBoundingClientRect();
     const horizontal = node.axis === "h";
     const size = horizontal ? rect.width : rect.height;

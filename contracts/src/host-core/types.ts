@@ -60,5 +60,5 @@ export interface FrameHandle {
   pluginId: string;
   version: string;
   caps: string[];
-  state: "handshake" | "ready" | "destroyed";
+  state: "handshake" | "ready" | "failed" | "destroyed";
 }

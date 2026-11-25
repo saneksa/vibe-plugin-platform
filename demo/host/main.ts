@@ -93,6 +93,21 @@ function syncFramesFromDom(): void {
   }
 }
 
+/** Pane-level error state: an error card in the pane instead of a blank frame. */
+function showFrameError(iid: string, message: string): void {
+  const rt = runtime;
+  if (rt === null) return;
+  const container = rt.appIid === iid ? document.getElementById(APP_FRAME_ID) : frameSlot(iid);
+  if (container === null) return;
+  container.querySelector(".frame-error")?.remove();
+  const card = document.createElement("div");
+  card.className = "frame-error";
+  card.dataset.iid = iid;
+  card.setAttribute("role", "alert");
+  card.textContent = message;
+  container.appendChild(card);
+}
+
 function renderCanvas(): void {
   const rt = runtime;
   if (rt === null) return;
@@ -213,7 +228,7 @@ export function boot(opts: BootOptions = {}): FrameManager {
     // only the host knows the full /app/<iid>/<path> URL.
     onNavigate: (iid, path, replace) => showApp(iid, path, true, replace),
   });
-  const fm = createFrameManager({ adapter });
+  const fm = createFrameManager({ adapter, onFrameError: showFrameError });
   const rt: Runtime = {
     fm,
     registry,
@@ -259,7 +274,22 @@ export function boot(opts: BootOptions = {}): FrameManager {
         });
       },
       onLaunchApp: (pluginId) => rt.launcher.open(pluginId),
-      onUpload: (file) => registry.upload(file),
+      onUpload: async (file) => {
+        const result = await registry.upload(file);
+        if (!result.ok) return result;
+        // Keep the server's message visible while the registry-derived UI
+        // (widgets, launcher and «доступно обновление») updates in place.
+        rt.shell.showStatus(result.message ?? "загружено", "info");
+        try {
+          await rt.shell.refresh();
+        } catch (error: unknown) {
+          rt.shell.showStatus(
+            `${result.message ?? "загружено"}; не удалось обновить данные реестра: ${errorMessage(error)}`,
+            "error",
+          );
+        }
+        return result;
+      },
       onThemeToggle: () => undefined,
       onUpgrade: switchVersion,
       onRollback: switchVersion,

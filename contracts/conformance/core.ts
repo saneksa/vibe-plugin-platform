@@ -10,7 +10,7 @@ import type { FrameHost } from "../src/host-core/FrameHost.js";
 import { HostState, LAYOUT_KEY } from "../src/host-core/HostState.js";
 import type { LayoutNode } from "../src/host-core/layout.js";
 import { restore, serialize } from "../src/host-core/layout.js";
-import { MessageRouter } from "../src/host-core/MessageRouter.js";
+import { HANDSHAKE_TIMEOUT_MS, MessageRouter } from "../src/host-core/MessageRouter.js";
 import type { FrameHandle, HostAdapter, RpcContext } from "../src/host-core/types.js";
 import {
   CAPS_CATALOGUE,
@@ -197,6 +197,39 @@ export function runCoreConformance(opts: CoreConformanceOptions): ConformanceRes
         }
         throws(() => decodeEnvelope({ type: "not-a-type", iid: "i1" }), "unknown envelope type");
         throws(() => decodeEnvelope({ type: "rpc" }), "missing iid");
+      },
+    },
+    {
+      name: "handshake-timeout",
+      run: () => {
+        const adapter = new RecordingAdapter(opts.adapterFactory());
+        const scheduler = new FakeScheduler();
+        const paneErrors: string[] = [];
+        const router = new MessageRouter({
+          adapter,
+          policy: getPolicy(),
+          schedule: scheduler.schedule,
+          onFrameError: (_handle, message) => paneErrors.push(message),
+        });
+        const handle = frameOf(
+          adapter,
+          opts.frameHostFactory(),
+          "handshake-timeout",
+          "clock",
+          "2.0.0",
+        );
+        router.mount(handle);
+        equal(handle.state, "handshake", "mounted frame awaits hello");
+        equal(scheduler.active.length, 1, "handshake deadline registered on mount");
+        equal(scheduler.active[0].ms, HANDSHAKE_TIMEOUT_MS, "handshake deadline constant");
+        equal(scheduler.fire(HANDSHAKE_TIMEOUT_MS), 1, "deadline fires");
+        equal(handle.state, "failed", "silent frame is marked failed");
+        const reply = lastSent(handle);
+        check(reply?.type === "error", "timeout sends an error envelope");
+        check(reply.message.includes("handshake"), "error explains the handshake failure");
+        equal(paneErrors.length, 1, "pane-level error reported once");
+        deliver(router, handle, hello("handshake-timeout", "2"));
+        equal(handle.state, "failed", "a late hello cannot revive a failed frame");
       },
     },
     {

@@ -145,19 +145,35 @@ import { runCoreConformance, runConformance, FixtureAdapter, FakeFrameHost, Memo
   from "@vibe/plugin-contracts/conformance";
 import { HostState } from "@vibe/plugin-contracts/host-core";
 
-// DOM-free: фейковые FrameHost/планировщик, 26 кейсов протокола/версий/раскладки
+// DOM-free: фейковые FrameHost/планировщик, кейсы протокола/версий/раскладки
+// (всего 27 кейсов: core + browser + прямые проверки адаптера)
 runCoreConformance({
   adapterFactory: () => new MyHostAdapter(inMemoryDeps),
   frameHostFactory: () => new FakeFrameHost(),
   state: new HostState(new MemoryStore()),
 });
 
-// Браузерный rig: сам поднимает ДВА origin и Chromium; вы даёте только адаптер
+// Браузерный rig: сам поднимает ДВА origin и Chromium; вы даёте только адаптер.
+// `TwoOrigins` = { hostOrigin, pluginOrigin, close() } —rig сообщает свои реальные
+// origin'ы через onOrigins ДО вызова adapterFactory (в т.ч. для core-кейсов).
+let pluginOrigin = "";
 const res = await runConformance({
-  adapterFactory: () => new MyHostAdapter({ pluginOrigin: rig.origin, ... }),
+  onOrigins: (origins) => { pluginOrigin = origins.pluginOrigin; },
+  adapterFactory: () => new MyHostAdapter({
+    pluginOrigin,
+    frameBase: (d) => `${pluginOrigin}/plugins/${d.id}/${d.version}/index.html`,
+    ...
+  }),
+  // ports?: [hostPort, pluginPort] — по умолчанию два свободных порта;
+  // origins?: TwoOrigins — можно передать уже поднятые origin'ы;
+  // playwright?: { chromium } — если раннер уже зарегистрировал свою копию.
 });
 expect(res.failed).toEqual([]);
 ```
+
+Импорт `@vibe/plugin-contracts/conformance` и вызов `runCoreConformance` не
+требуют `@playwright/test`: он загружается лениво только внутри
+`runConformance`.
 
 Один и тот же класс адаптера работает в трёх конфигурациях: прод (ваш реестр),
 core (фейки) и rig (in-memory хранилища, origin'а rig'а). В демо это

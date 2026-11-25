@@ -353,6 +353,40 @@ describe("demo host", () => {
     );
   });
 
+  it("a successful upload refreshes the registry UI without a page reload", async () => {
+    const fx = fixture({ versions: [CLOCK], active: { clock: "1.2.0" } });
+    let uploaded = false;
+    const fn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (method === "GET" && url.endsWith("/api/plugins")) {
+        return response({
+          versions: uploaded ? [CLOCK, { ...CLOCK, version: "2.0.0" }] : fx.versions,
+          activeVersion: fx.active,
+        });
+      }
+      if (url.endsWith("/api/plugins") && method === "POST") {
+        uploaded = true;
+        return response({ ok: true, message: "загружено" });
+      }
+      if (url.endsWith("/api/meta")) return response({ hostVersion: "2.4.0" });
+      return response({}, 404);
+    });
+    boot({ fetch: fn });
+    await vi.waitFor(() => expect(document.querySelector('[data-add-widget="clock"]')).not.toBeNull());
+    expect(document.querySelector('[data-upgrade="clock"]')).toBeNull();
+
+    const input = document.querySelector<HTMLInputElement>("[data-upload]")!;
+    Object.defineProperty(input, "files", { value: [new File(["x"], "clock-2.0.0.zip")] });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+
+    await vi.waitFor(() => expect(document.querySelector('[data-upgrade="clock"]')).not.toBeNull());
+    expect(document.querySelector<HTMLElement>('[data-upgrade="clock"]')?.textContent).toContain(
+      "доступно обновление",
+    );
+    expect(statusText()).toBe("загружено");
+  });
+
   it("shows a status in the header when adding a widget fails", async () => {
     const { fn, state } = controlledFetch(fixture());
     boot({ fetch: fn });
@@ -417,6 +451,23 @@ describe("demo host", () => {
     await vi.waitFor(() => expect(statusText()).toContain("Не удалось открыть приложение"));
     expect(statusText()).toContain("registry list unavailable");
     expect(document.querySelector("#app-stage iframe")).toBeNull();
+  });
+
+  it("renders a pane-level error card when a frame's handshake times out", async () => {
+    vi.useFakeTimers();
+    try {
+      boot();
+      await clickAdd("clock");
+
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      const card = document.querySelector<HTMLElement>("#vibe-canvas .frame-error");
+      expect(card).not.toBeNull();
+      expect(card?.dataset.iid).toBeTruthy();
+      expect(card?.textContent).toContain("handshake timed out");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("shows a status in the header when the initial shell refresh fails", async () => {

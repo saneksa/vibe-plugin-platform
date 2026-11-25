@@ -20,6 +20,8 @@ export interface FrameManagerOptions {
   policy?: CompatibilityPolicy;
   /** Legacy-major dispatcher injected into the router (T8/T17 seam). */
   adaptV1?: (method: string, params: unknown, ctx: RpcContext) => Promise<unknown>;
+  /** Pane-level error hook (e.g. render an error card instead of a blank pane). */
+  onFrameError?: (iid: string, message: string) => void;
 }
 
 export interface FrameManager {
@@ -81,6 +83,9 @@ class FrameManagerImpl implements FrameManager {
         return () => clearTimeout(timer);
       },
       ...(opts.adaptV1 === undefined ? {} : { adaptV1: opts.adaptV1 }),
+      ...(opts.onFrameError === undefined
+        ? {}
+        : { onFrameError: (handle, message) => opts.onFrameError!(handle.iid, message) }),
     });
 
     this.frameHost.onMessage(({ origin, source, data, iid }) => {
@@ -124,6 +129,7 @@ class FrameManagerImpl implements FrameManager {
 
     this.handles.set(iid, handle);
     this.mounts.set(iid, { container, route: effectiveRoute });
+    this.router.mount(handle);
     return handle;
   }
 

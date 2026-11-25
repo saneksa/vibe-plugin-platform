@@ -24,7 +24,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "check:boundary": "node scripts/check-boundary.mjs"
+    "check:boundary": "node scripts/check-boundary.mjs",
+    "check:playwright-free": "node scripts/check-playwright-free.mjs"
   },
   "dependencies": {
     "fflate": "^0.8.2"

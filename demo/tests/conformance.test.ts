@@ -7,32 +7,15 @@
  * This is a Playwright test; `demo/vitest.config.ts` excludes `tests/**` so the
  * Vitest suite never tries to collect it.
  */
-import { expect, test } from "@playwright/test";
+import { chromium, expect, test } from "@playwright/test";
+import { runConformance } from "@vibe/plugin-contracts/conformance";
 import type { PluginDescriptorDTO } from "@vibe/plugin-contracts/host-core";
-import type { runConformance as RunConformance } from "@vibe/plugin-contracts/conformance";
 import {
   DemoHostAdapter,
   type KeyValueStore,
   type RegistryTransport,
 } from "../host/DemoHostAdapter.js";
 
-/**
- * `contracts/` is a separate package with its own `@playwright/test` install.
- * Playwright refuses to register a second physical copy in one process, so the
- * harness is loaded lazily while the registration marker is temporarily clear.
- */
-async function portableHarness(): Promise<typeof RunConformance> {
-  const pw = process as NodeJS.Process & { __pw_initiator__?: string };
-  const marker = pw.__pw_initiator__;
-  delete pw.__pw_initiator__;
-  try {
-    return (await import("@vibe/plugin-contracts/conformance")).runConformance;
-  } finally {
-    pw.__pw_initiator__ = marker;
-  }
-}
-
-const PLUGIN_ORIGIN = "http://localhost:4001";
 const HOST_VERSION = "2.4.0";
 
 function memoryStore(): KeyValueStore {
@@ -74,6 +57,7 @@ const MANDATED_CASES = [
   "reload-restores",
   "rpc-no-caps-blocked",
   "envelope-roundtrip",
+  "handshake-timeout",
   "major-gate-409",
   "v1-adapter-in-deprecation-window",
   "append-only-minor",
@@ -93,12 +77,18 @@ const MANDATED_CASES = [
 ];
 
 test("demo's real HostAdapter passes the portable conformance harness", async () => {
-  const runConformance = await portableHarness();
+  // The rig owns the origins; the adapter derives its origin/frame base from
+  // them via the callback instead of hardcoding a port.
+  let pluginOrigin = "";
   const res = await runConformance({
+    playwright: { chromium },
+    onOrigins: (origins) => {
+      pluginOrigin = origins.pluginOrigin;
+    },
     adapterFactory: () =>
       new DemoHostAdapter({
-        pluginOrigin: PLUGIN_ORIGIN,
-        frameBase: (d) => `${PLUGIN_ORIGIN}/plugins/${d.id}/${d.version}/index.html`,
+        pluginOrigin,
+        frameBase: (d) => `${pluginOrigin}/plugins/${d.id}/${d.version}/index.html`,
         registry: memoryRegistry(),
         store: memoryStore(),
         hostVersion: HOST_VERSION,
@@ -108,6 +98,7 @@ test("demo's real HostAdapter passes the portable conformance harness", async ()
       }),
   });
 
+  expect(pluginOrigin).not.toBe("");
   expect(res.failed).toEqual([]);
   for (const name of MANDATED_CASES) expect(res.passed).toContain(name);
 });

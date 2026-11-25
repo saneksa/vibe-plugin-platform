@@ -93,6 +93,22 @@ html, body, #app {
   border: 0;
   background: #fff;
 }
+.frame-slot, .app-frame { position: relative; }
+.frame-error {
+  position: absolute;
+  inset: 8px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  border: 1px solid #b5873b;
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  text-align: center;
+  font-size: 13px;
+}
 
 #app-stage {
   flex: 1 1 auto;

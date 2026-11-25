@@ -31,6 +31,7 @@ const BROWSER_CASES = [
 
 const CORE_CASES = [
   "envelope-roundtrip",
+  "handshake-timeout",
   "major-gate-409",
   "v1-adapter-in-deprecation-window",
   "append-only-minor",

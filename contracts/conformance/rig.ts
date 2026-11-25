@@ -5,7 +5,9 @@
  * demo servers and no external HTTP packages.
  */
 
-import { chromium, type Page } from "@playwright/test";
+// Type-only import: erased at runtime, so importing ./conformance never
+// requires the Playwright devDependency (only runConformance does).
+import type { Browser, Page } from "@playwright/test";
 import { createFrameManager } from "../src/host-core/FrameManager.js";
 import { HostState } from "../src/host-core/HostState.js";
 import type { HostAdapter, PluginDescriptor, RpcContext } from "../src/host-core/types.js";
@@ -19,6 +21,16 @@ export { startTwoOrigins } from "./staticServer.js";
 export interface ConformanceOptions {
   adapterFactory: () => HostAdapter;
   ports?: [number, number];
+  /** Called with the rig's real origins before any adapter is constructed. */
+  onOrigins?: (origins: TwoOrigins) => void;
+  /** Optional pre-started origins; when omitted the rig starts and owns them. */
+  origins?: TwoOrigins;
+  /**
+   * Optional Playwright injection. A consumer whose test runner already
+   * registered a physical copy of @playwright/test can pass its own `chromium`
+   * instead of the rig loading a second copy.
+   */
+  playwright?: { chromium: typeof import("@playwright/test").chromium };
 }
 
 type RigWindow = Window & {
@@ -407,42 +419,53 @@ export async function runConformance(opts: ConformanceOptions): Promise<Conforma
   const passed: string[] = [];
   const failed: Failure[] = [];
 
-  try {
-    const core = runCoreConformance({
-      adapterFactory: opts.adapterFactory,
-      frameHostFactory: () => new FakeFrameHost(),
-      state: new HostState(new MemoryStore()),
-    });
-    passed.push(...core.passed);
-    failed.push(...core.failed);
-  } catch (err) {
-    failed.push({ name: "core-conformance", error: errorOf(err) });
-  }
-
   let origins: TwoOrigins | undefined;
-  let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
+  let browser: Browser | undefined;
+  const ownsOrigins = opts.origins === undefined;
   try {
-    origins = await startTwoOrigins(opts.ports);
-    browser = await chromium.launch();
-    const page = await browser.newPage();
-    const adapter = opts.adapterFactory();
-    const bridge = await installBridge(page, adapter);
+    // Origins are started (or supplied) before any adapterFactory call, so a
+    // consumer can derive its plugin origin/frame base from the real rig.
+    origins = opts.origins ?? (await startTwoOrigins(opts.ports));
+    opts.onOrigins?.(origins);
 
-    await page.goto(`${origins.hostOrigin}/`);
-    await page.evaluate(() => (window as unknown as RigWindow).__rigMount());
-    await page.waitForFunction(
-      () => (window as unknown as RigWindow).__rigReports.some((entry) => entry.crashed === true),
-      null,
-      { timeout: 10_000 },
-    );
+    try {
+      const core = runCoreConformance({
+        adapterFactory: opts.adapterFactory,
+        frameHostFactory: () => new FakeFrameHost(),
+        state: new HostState(new MemoryStore()),
+      });
+      passed.push(...core.passed);
+      failed.push(...core.failed);
+    } catch (err) {
+      failed.push({ name: "core-conformance", error: errorOf(err) });
+    }
 
-    await collect(browserCases(page, bridge), passed, failed);
-    await collect(adapterCases(page, adapter, origins), passed, failed);
+    try {
+      // Loaded lazily: core-only consumers never need @playwright/test.
+      const playwright = opts.playwright ?? (await import("@playwright/test"));
+      browser = await playwright.chromium.launch();
+      const page = await browser.newPage();
+      const adapter = opts.adapterFactory();
+      const bridge = await installBridge(page, adapter);
+
+      await page.goto(`${origins.hostOrigin}/`);
+      await page.evaluate(() => (window as unknown as RigWindow).__rigMount());
+      await page.waitForFunction(
+        () => (window as unknown as RigWindow).__rigReports.some((entry) => entry.crashed === true),
+        null,
+        { timeout: 10_000 },
+      );
+
+      await collect(browserCases(page, bridge), passed, failed);
+      await collect(adapterCases(page, adapter, origins), passed, failed);
+    } catch (err) {
+      failed.push({ name: "browser-setup", error: errorOf(err) });
+    }
   } catch (err) {
-    failed.push({ name: "browser-setup", error: errorOf(err) });
+    failed.push({ name: "rig-setup", error: errorOf(err) });
   } finally {
     if (browser !== undefined) await browser.close().catch(() => undefined);
-    if (origins !== undefined) await origins.close().catch(() => undefined);
+    if (ownsOrigins && origins !== undefined) await origins.close().catch(() => undefined);
   }
 
   return { passed, failed };

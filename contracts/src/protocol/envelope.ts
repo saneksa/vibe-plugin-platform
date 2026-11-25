@@ -2,6 +2,8 @@
  * Wire envelopes (spec §8.2). Every message is JSON and carries `iid`.
  * `api` is the protocol major only; minors are expressed as additive `caps`.
  */
+
+import { majorOf } from "./major.js";
 export type Envelope =
   | { type: "hello"; iid: string; api: string; sdk: string; plugin: { id: string; version: string }; wants: string[] }
   | { type: "ready"; iid: string; api: string; caps: string[]; deprecated: string[]; sunset?: string; hostVersion?: string }
@@ -47,5 +49,47 @@ export function decodeEnvelope(raw: unknown): Envelope {
   if (typeof env.type !== "string" || !KNOWN_TYPES.has(env.type)) {
     throw new TypeError(`unknown envelope type: ${String(env.type)}`);
   }
+  checkEnvelopeFields(env);
   return env as unknown as Envelope;
+}
+
+const isText = (value: unknown): value is string => typeof value === "string" && value.length > 0;
+
+function checkApi(value: unknown, type: string): void {
+  try {
+    majorOf(value as string);
+  } catch {
+    throw new TypeError(`${type}.api must be a bare major string`);
+  }
+}
+
+/**
+ * Envelope-shaped fields are part of the trust boundary: the host dispatches
+ * on them without re-checking, so malformed values must be rejected here.
+ */
+function checkEnvelopeFields(env: Record<string, unknown>): void {
+  switch (env.type) {
+    case "hello":
+      checkApi(env.api, "hello");
+      if (!Array.isArray(env.wants) || !env.wants.every((cap) => typeof cap === "string")) {
+        throw new TypeError("hello.wants must be an array of strings");
+      }
+      break;
+    case "ready":
+      checkApi(env.api, "ready");
+      break;
+    case "rpc":
+      checkApi(env.api, "rpc");
+      if (!isText(env.method)) throw new TypeError("rpc.method must be a non-empty string");
+      break;
+    case "event":
+      if (!isText(env.topic)) throw new TypeError("event.topic must be a non-empty string");
+      break;
+    case "navigate":
+      if (!isText(env.path)) throw new TypeError("navigate.path must be a non-empty string");
+      if (env.replace !== undefined && typeof env.replace !== "boolean") {
+        throw new TypeError("navigate.replace must be a boolean");
+      }
+      break;
+  }
 }

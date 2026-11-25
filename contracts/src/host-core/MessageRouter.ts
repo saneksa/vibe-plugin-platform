@@ -16,6 +16,8 @@ import {
 import type { FrameHandle, FrameSourceRef, HostAdapter, RpcContext } from "./types.js";
 
 const RPC_TIMEOUT_MS = 5000;
+/** A frame that never sends `hello` must not leave a permanently blank pane. */
+export const HANDSHAKE_TIMEOUT_MS = 10_000;
 
 /** Every hostAPI method and the cap the core requires before calling it. */
 const METHOD_CAPS: Record<string, string> = {
@@ -92,12 +94,36 @@ export class MessageRouter {
        * richer v1 envelope adaptation (T8's adapters/v1.ts) here.
        */
       adaptV1?: (method: string, params: unknown, ctx: RpcContext) => Promise<unknown>;
+      /** Notified when a mounted frame fails to complete its handshake in time. */
+      onFrameError?: (handle: FrameHandle, message: string) => void;
     },
   ) {}
 
+  private readonly handshakes = new Map<string, () => void>();
+
+  /**
+   * Starts the handshake deadline for a frame that was just mounted. The
+   * injectable scheduler keeps this deterministic in tests; the 5s RPC
+   * deadline is a separate concern and is left untouched.
+   */
+  mount(handle: FrameHandle): void {
+    if (handle.state === "destroyed" || handle.state === "failed") return;
+    this.cancelHandshake(handle.iid);
+    const cancel = this.deps.schedule(() => {
+      this.handshakes.delete(handle.iid);
+      if (handle.state !== "handshake") return;
+      const message = `handshake timed out after ${HANDSHAKE_TIMEOUT_MS}ms; plugin did not send hello`;
+      handle.state = "failed";
+      handle.caps = [];
+      this.sendError(handle, message);
+      this.deps.onFrameError?.(handle, message);
+    }, HANDSHAKE_TIMEOUT_MS);
+    this.handshakes.set(handle.iid, cancel);
+  }
+
   accept(msg: { origin: string; source: FrameSourceRef; data: unknown; handle: FrameHandle }): void {
     const { handle } = msg;
-    if (handle.state === "destroyed") return;
+    if (handle.state === "destroyed" || handle.state === "failed") return;
     if (msg.origin !== handle.expectedOrigin || msg.source !== handle.source) return;
 
     let envelope: Envelope;
@@ -108,6 +134,16 @@ export class MessageRouter {
     }
     if (envelope.iid !== handle.iid) return;
 
+    // A hostile or broken adapter must never throw into the host's window
+    // `message` listener. The consumer always gets a structured error envelope.
+    try {
+      this.dispatch(envelope, handle);
+    } catch (err) {
+      this.sendError(handle, `host rejected ${envelope.type}: ${errorInfo(err).message}`);
+    }
+  }
+
+  private dispatch(envelope: Envelope, handle: FrameHandle): void {
     // `navigate` is a wire envelope (§8.2/§12), not an RPC method. The triple
     // checks above already bound it to this frame; the router still enforces
     // the app-only capability itself before any host call (spec §8.3).
@@ -125,6 +161,21 @@ export class MessageRouter {
     if (envelope.type === "rpc" && state !== undefined) this.onRpc(envelope, state);
   }
 
+  private cancelHandshake(iid: string): void {
+    const cancel = this.handshakes.get(iid);
+    if (cancel === undefined) return;
+    cancel();
+    this.handshakes.delete(iid);
+  }
+
+  private sendError(handle: FrameHandle, message: string): void {
+    try {
+      this.send(handle, { type: "error", iid: handle.iid, message });
+    } catch {
+      // A frame source without postMessage cannot be told; never rethrow.
+    }
+  }
+
   publish(topic: string, value: unknown): void {
     for (const state of this.states.values()) {
       const { handle } = state;
@@ -135,6 +186,7 @@ export class MessageRouter {
   }
 
   destroy(iid: string): void {
+    this.cancelHandshake(iid);
     const state = this.states.get(iid);
     if (state === undefined) return;
     for (const pending of state.pending.values()) pending.cancel();
@@ -168,6 +220,7 @@ export class MessageRouter {
     const caps = this.deps.adapter.grantCapabilities(hello.wants, ref);
     handle.caps = [...caps];
     handle.state = "ready";
+    this.cancelHandshake(handle.iid);
     this.states.set(handle.iid, {
       handle,
       major: hello.api,

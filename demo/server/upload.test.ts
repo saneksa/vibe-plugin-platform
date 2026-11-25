@@ -88,6 +88,33 @@ describe("handleUpload", () => {
     expect(registry.list()).toEqual([]);
   });
 
+  it("rejects traversal in manifest.id even when every member checksum is valid", async () => {
+    const { dest, registry } = setup();
+    // The archive is internally consistent: only the manifest's id is hostile.
+    const result = await handleUpload(archive({ manifest: { id: "../../etc" } }), registry, dest);
+
+    expect(result.status).toBe(400);
+    expect(result.body.code).toBe("INVALID_MANIFEST");
+    expect(result.body.message).toContain("id must be a safe");
+    expect(existsSync(join(dest, "../../etc"))).toBe(false);
+    expect(existsSync(join(dest, ID))).toBe(false);
+    expect(registry.list()).toEqual([]);
+  });
+
+  it("rejects traversal in manifest.version", async () => {
+    const { dest, registry } = setup();
+    const result = await handleUpload(
+      archive({ manifest: { version: "../../evil" } }),
+      registry,
+      dest,
+    );
+
+    expect(result.status).toBe(400);
+    expect(existsSync(join(dest, "../../evil"))).toBe(false);
+    expect(existsSync(join(dest, ID))).toBe(false);
+    expect(registry.list()).toEqual([]);
+  });
+
   it("rejects absolute and backslash member paths", async () => {
     const { dest, registry } = setup();
     for (const name of ["/etc/evil.js", "..\\evil.js"]) {
