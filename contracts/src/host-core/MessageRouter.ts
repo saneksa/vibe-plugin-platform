@@ -108,6 +108,13 @@ export class MessageRouter {
     }
     if (envelope.iid !== handle.iid) return;
 
+    // `navigate` is a wire envelope (§8.2/§12), not an RPC method. The triple
+    // checks above already bound it to this frame; the router owns no URL state.
+    if (envelope.type === "navigate") {
+      this.deps.adapter.onNavigate(handle.iid, envelope.path, envelope.replace ?? false);
+      return;
+    }
+
     if (envelope.type === "hello") {
       this.onHello(envelope, handle);
       return;
