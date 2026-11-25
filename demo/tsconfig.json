@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  // Each plugin example is its own package with its own tsconfig; the demo
+  // typecheck covers only the host, backend and its own tests.
+  "include": ["*.ts", "host/**/*.ts", "server/**/*.ts", "tests/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

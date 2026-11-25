@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "id": "my-plugin",
+  "kind": "widget",
+  "version": "1.0.0",
+  "hostApi": "^2",
+  "sdk": "2.0.0",
+  "title": "My plugin",
+  "icon": "puzzle",
+  "entry": "index.html",
+  "capabilities": ["theme.read", "notify"],
+  "defaultSize": { "w": 320, "h": 200 },
+  "minSize": { "w": 200, "h": 120 }
+}

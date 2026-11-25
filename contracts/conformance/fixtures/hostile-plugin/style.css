@@ -1,0 +1,15 @@
+/* Attempt 3: a widely-used font family and a global selector. Both must stay
+   inside this frame; the host's realm must be untouched. */
+@font-face {
+  font-family: "VibeCommon";
+  src: local("Arial");
+}
+
+body {
+  background: rgb(255, 0, 0) !important;
+}
+
+#host-sentinel {
+  display: none !important;
+  color: rgb(255, 255, 255) !important;
+}

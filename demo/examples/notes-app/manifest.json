@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "id": "notes-app",
+  "kind": "app",
+  "version": "1.0.0",
+  "hostApi": "^2",
+  "sdk": "2.0.0",
+  "title": "Notes",
+  "icon": "note",
+  "entry": "index.html",
+  "capabilities": ["storage.read", "storage.write", "navigate", "notify"],
+  "routes": ["/", "/list", "/settings/:tab"],
+  "defaultSize": { "w": 900, "h": 600 },
+  "minSize": { "w": 400, "h": 300 }
+}

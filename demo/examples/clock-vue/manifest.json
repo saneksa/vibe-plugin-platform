@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "id": "clock-vue",
+  "kind": "widget",
+  "version": "1.0.0",
+  "hostApi": "^2",
+  "sdk": "2.0.0",
+  "title": "Clock (Vue)",
+  "icon": "clock",
+  "entry": "index.html",
+  "capabilities": ["theme.read", "notify"],
+  "defaultSize": { "w": 320, "h": 200 },
+  "minSize": { "w": 240, "h": 140 }
+}

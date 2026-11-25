@@ -1,0 +1,14 @@
+{
+  "current": 2,
+  "supported": ["2", "1"],
+  "deprecated": {
+    "1": {
+      "sunset": "host@3.0.0",
+      "adapter": "adapters/v1.ts"
+    }
+  },
+  "matrix": {
+    "sdk@1.4": "protocol@1",
+    "sdk@2.1": "protocol@2"
+  }
+}
