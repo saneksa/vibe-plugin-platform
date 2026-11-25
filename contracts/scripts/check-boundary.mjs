@@ -3,10 +3,11 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Same rule as scripts/boundary.test.ts: contracts/src and contracts/conformance
-// must never import from demo/.
+// Same rule as scripts/boundary.test.ts: nothing in contracts/ (sources,
+// conformance, CLI or the author template) may import from demo/.
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const scanDirs = [resolve(root, "src"), resolve(root, "conformance")];
+const scanDirs = ["src", "conformance", "cli", "templates"].map((dir) => resolve(root, dir));
+const extensions = [".ts", ".js", ".mjs"];
 const violation = /from ["'].*demo\//;
 
 for (const dir of scanDirs) {
@@ -19,7 +20,7 @@ for (const dir of scanDirs) {
 const found = [];
 for (const dir of scanDirs) {
   for (const name of readdirSync(dir, { recursive: true })) {
-    if (typeof name !== "string" || !name.endsWith(".ts")) continue;
+    if (typeof name !== "string" || !extensions.some((ext) => name.endsWith(ext))) continue;
     readFileSync(resolve(dir, name), "utf8")
       .split(/\r?\n/)
       .forEach((line, index) => {
@@ -34,4 +35,4 @@ if (found.length > 0) {
   process.exit(1);
 }
 
-console.log("boundary: OK — no imports from demo/ in contracts/src or contracts/conformance");
+console.log("boundary: OK — no imports from demo/ in contracts/src, conformance, cli or templates");
