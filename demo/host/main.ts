@@ -11,10 +11,19 @@ import {
 } from "@vibe/plugin-contracts/host-core";
 import { encodeEnvelope, type Envelope } from "@vibe/plugin-contracts/protocol";
 import { AppLauncher } from "./AppLauncher.js";
-import { CANVAS_ID, Canvas, frameSlot, setCanvasResizeHandler } from "./Canvas.js";
+import {
+  CANVAS_ID,
+  Canvas,
+  frameSlot,
+  setCanvasResizeHandler,
+  type TileMeta,
+} from "./Canvas.js";
 import { DemoHostAdapter } from "./DemoHostAdapter.js";
+import { icon, pluginGlyph } from "./icons.js";
 import { RegistryClient } from "./RegistryClient.js";
 import { errorMessage, Shell } from "./Shell.js";
+import { Toasts } from "./Toasts.js";
+import { applyStoredTheme, currentTheme } from "./theme.js";
 
 export const PLUGIN_ORIGIN = "http://localhost:4001";
 export const HOST_VERSION = "2.4.0";
@@ -33,12 +42,16 @@ interface Runtime {
   registry: RegistryClient;
   launcher: AppLauncher;
   shell: Shell;
+  toasts: Toasts;
   frames: Map<string, HTMLIFrameElement>;
   appIid: string | null;
 }
 
 let runtime: Runtime | null = null;
 let popstateBound = false;
+let dropBound = false;
+let dropOverlay: HTMLElement | null = null;
+let dropDepth = 0;
 
 /** `path` is absent when the URL is bare `/app/<iid>`: keep the stored route. */
 function parseAppUrl(): { iid: string; path?: string } | null {
@@ -82,14 +95,69 @@ function postAll(state: "suspend" | "resume", exceptIid: string | null): void {
   }
 }
 
-/** `FrameManager` can rebuild frames in place; re-read their DOM references. */
+/**
+ * Shows the loading skeleton of a freshly mounted frame. `FrameManager` can
+ * rebuild frames in place, so the host re-runs this after every rebuild.
+ */
+function decorateFrame(iid: string, frame: HTMLIFrameElement): void {
+  const rt = runtime;
+  const container = frame.parentElement;
+  if (rt === null || container === null) return;
+  const pluginId = rt.fm.state.getInstances()[iid]?.pluginId;
+  const meta = pluginId === undefined ? undefined : rt.shell.describe(pluginId);
+  frame.title = meta === undefined ? "Плагин" : `${meta.title} — плагин`;
+  container.dataset.loading = "";
+  frame.addEventListener(
+    "load",
+    () => {
+      if (frame.isConnected) delete container.dataset.loading;
+    },
+    { once: true },
+  );
+}
+
+/** After `fm.upgrade` / `fm.restore` the DOM holds new frame elements. */
 function syncFramesFromDom(): void {
   const rt = runtime;
   if (rt === null) return;
+  const known = new Map(rt.frames);
   rt.frames.clear();
   for (const frame of document.querySelectorAll<HTMLIFrameElement>("iframe")) {
     const iid = new URL(frame.getAttribute("src") ?? "", "http://localhost").searchParams.get("iid");
-    if (iid !== null) rt.frames.set(iid, frame);
+    if (iid === null) continue;
+    rt.frames.set(iid, frame);
+    // Only rebuilt frames are new DOM nodes; the others have already loaded.
+    if (known.get(iid) !== frame) decorateFrame(iid, frame);
+  }
+  refreshTileHeaders();
+}
+
+/** Frames are rebuilt in place, so the version in tile headers follows the state. */
+function refreshTileHeaders(): void {
+  const rt = runtime;
+  if (rt === null) return;
+  const instances = rt.fm.state.getInstances();
+  for (const slot of document.querySelectorAll<HTMLElement>(`#${CANVAS_ID} .frame-slot`)) {
+    const record = instances[slot.dataset.iid ?? ""];
+    const meta: TileMeta = {
+      title: rt.shell.describe(record?.pluginId ?? "")?.title ?? record?.pluginId ?? "",
+      version: record?.version ?? "",
+    };
+    const version = slot.querySelector<HTMLElement>('[data-role="version"]');
+    if (version !== null) version.textContent = meta.version === "" ? "" : `v${meta.version}`;
+    const title = slot.querySelector<HTMLElement>('[data-role="title"]');
+    if (title !== null && meta.title !== "") title.textContent = meta.title;
+  }
+  if (rt.appIid !== null) {
+    const record = instances[rt.appIid];
+    const described = record === undefined ? undefined : rt.shell.describe(record.pluginId);
+    if (record !== undefined && described !== undefined) {
+      rt.shell.setAppIdentity({
+        title: described.title,
+        icon: described.icon,
+        version: record.version,
+      });
+    }
   }
 }
 
@@ -99,6 +167,7 @@ function showFrameError(iid: string, message: string): void {
   if (rt === null) return;
   const container = rt.appIid === iid ? document.getElementById(APP_FRAME_ID) : frameSlot(iid);
   if (container === null) return;
+  delete container.dataset.loading;
   container.querySelector(".frame-error")?.remove();
   const card = document.createElement("div");
   card.className = "frame-error";
@@ -118,15 +187,18 @@ function closeWidgetMenu(): void {
   document.querySelector("[data-widget-menu]")?.remove();
 }
 
-/** Shared by the right-click menu and the corner icon: remove via host-core. */
+/** Shared by the tile header button and the right-click menu: removal goes through host-core. */
 function removeWidget(iid: string): void {
   const rt = runtime;
   if (rt === null) return;
   closeWidgetMenu();
+  const pluginId = rt.fm.state.getInstances()[iid]?.pluginId;
+  const title = pluginId === undefined ? undefined : rt.shell.describe(pluginId)?.title;
   rt.fm.unmount(iid);
   rt.fm.state.removeWidget(iid);
   rt.frames.delete(iid);
   renderCanvas();
+  rt.shell.showStatus(`Виджет${title === undefined ? "" : ` «${title}»`} удалён`, "info");
 }
 
 /** Right-click menu for one widget pane; deletion goes through host-core. */
@@ -137,40 +209,106 @@ function showWidgetMenu(iid: string, x: number, y: number): void {
   const menu = document.createElement("div");
   menu.className = "widget-menu";
   menu.dataset.widgetMenu = iid;
-  menu.style.left = `${x}px`;
-  menu.style.top = `${y}px`;
   const remove = document.createElement("button");
   remove.type = "button";
   remove.dataset.removeWidget = iid;
   remove.dataset.iid = iid;
-  remove.textContent = "Удалить виджет";
+  remove.innerHTML = icon("trash", 14);
+  remove.append(document.createTextNode("Удалить виджет"));
   remove.addEventListener("click", () => removeWidget(iid));
   menu.appendChild(remove);
   document.body.appendChild(menu);
+  // Keep the menu inside the window when it opens near an edge.
+  const box = menu.getBoundingClientRect();
+  menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - box.width - 8))}px`;
+  menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - box.height - 8))}px`;
   widgetMenuClose = () => closeWidgetMenu();
   document.addEventListener("click", widgetMenuClose, { once: true });
+}
+
+function widgetCount(): number {
+  return document.querySelectorAll(`#${CANVAS_ID} .frame-slot`).length;
+}
+
+/** Canvas-dependent chrome: the empty state, the widget counter, instance counts. */
+function syncChrome(): void {
+  const rt = runtime;
+  if (rt === null) return;
+  renderEmptyState();
+  rt.shell.setCanvasCount(widgetCount());
+  rt.shell.repaint();
+}
+
+/** Empty canvas: what to do next, and the shortest way to do it. */
+function renderEmptyState(): void {
+  const rt = runtime;
+  const canvas = document.getElementById(CANVAS_ID);
+  if (rt === null || canvas === null) return;
+  canvas.querySelector(".canvas-empty")?.remove();
+  if (rt.fm.state.getLayout() !== null) return;
+
+  const entries = rt.shell.entries;
+  const installed = entries.length > 0;
+  const empty = document.createElement("div");
+  empty.className = "canvas-empty";
+  empty.innerHTML =
+    `<div class="empty-art" aria-hidden="true">${icon("tiles", 40)}</div>` +
+    '<h2 class="empty-title"></h2><div class="empty-text"></div><div class="empty-actions"></div>';
+  empty.querySelector(".empty-title")!.textContent = installed
+    ? "Холст пуст"
+    : "Плагины ещё не установлены";
+  empty.querySelector(".empty-text")!.textContent = installed
+    ? "Добавьте виджет из каталога слева — он появится здесь плиткой. Размеры плиток меняются перетаскиванием разделителей."
+    : "Загрузите zip-архив плагина — он появится в каталоге слева.";
+
+  const actions = empty.querySelector(".empty-actions")!;
+  if (!installed) {
+    const upload = document.createElement("button");
+    upload.type = "button";
+    upload.className = "btn btn-primary";
+    upload.dataset.pickZip = "";
+    upload.innerHTML = `${icon("upload")}<span>Загрузить zip</span>`;
+    actions.append(upload);
+  } else {
+    // A convenience, deliberately not a catalog hook: `data-add-widget` must
+    // stay unique per plugin for the tests.
+    for (const entry of entries.filter((candidate) => candidate.kind === "widget")) {
+      const add = document.createElement("button");
+      add.type = "button";
+      add.className = "btn";
+      add.dataset.quickAdd = entry.id;
+      add.innerHTML = `<span class="plugin-icon plugin-icon-sm" aria-hidden="true">${icon(pluginGlyph(entry.icon))}</span>`;
+      add.append(document.createTextNode(entry.title));
+      actions.append(add);
+    }
+  }
+  if (actions.childElementCount === 0) actions.remove();
+  canvas.appendChild(empty);
 }
 
 function renderCanvas(): void {
   const rt = runtime;
   if (rt === null) return;
-  Canvas.render(rt.fm.state.getLayout(), (iid) => {
-    const slot = frameSlot(iid);
-    if (slot === null) return;
-    slot.replaceChildren();
-    rt.fm.mount(slot, iid);
-    const frame = slot.querySelector<HTMLIFrameElement>("iframe");
-    if (frame !== null) rt.frames.set(iid, frame);
-    const icon = document.createElement("button");
-    icon.type = "button";
-    icon.className = "widget-remove";
-    icon.dataset.removeWidget = iid;
-    icon.dataset.iid = iid;
-    icon.title = "Удалить виджет";
-    icon.textContent = "×";
-    icon.addEventListener("click", () => removeWidget(iid));
-    slot.appendChild(icon);
-  }, showWidgetMenu);
+  Canvas.render(
+    rt.fm.state.getLayout(),
+    (iid) => {
+      const slot = frameSlot(iid);
+      if (slot === null) return;
+      slot.querySelector("[data-remove-widget]")?.addEventListener("click", () => removeWidget(iid));
+      rt.fm.mount(slot, iid);
+      const frame = slot.querySelector<HTMLIFrameElement>("iframe");
+      if (frame !== null) {
+        rt.frames.set(iid, frame);
+        decorateFrame(iid, frame);
+      }
+    },
+    showWidgetMenu,
+    (leaf) => {
+      const meta = rt.shell.describe(leaf.pluginId);
+      return { title: meta?.title ?? leaf.pluginId, icon: meta?.icon, version: leaf.version };
+    },
+  );
+  syncChrome();
 }
 
 function closeCurrentAppFrame(): void {
@@ -180,7 +318,9 @@ function closeCurrentAppFrame(): void {
     rt.fm.unmount(rt.appIid);
     rt.frames.delete(rt.appIid);
   }
-  document.getElementById(APP_FRAME_ID)?.replaceChildren();
+  const stage = document.getElementById(APP_FRAME_ID);
+  stage?.replaceChildren();
+  if (stage !== null) delete stage.dataset.loading;
   rt.appIid = null;
 }
 
@@ -191,7 +331,10 @@ function mountApp(iid: string, path?: string): void {
   stage.replaceChildren();
   rt.fm.mount(stage, iid, path); // undefined → FrameManager uses the stored route
   const frame = stage.querySelector<HTMLIFrameElement>("iframe");
-  if (frame !== null) rt.frames.set(iid, frame);
+  if (frame !== null) {
+    rt.frames.set(iid, frame);
+    decorateFrame(iid, frame);
+  }
   rt.appIid = iid;
 }
 
@@ -224,6 +367,11 @@ function showApp(
 
   document.getElementById(CANVAS_ID)?.classList.add("hidden");
   document.getElementById(APP_STAGE_ID)?.classList.remove("hidden");
+  rt.shell.setApp({ ...(rt.shell.describe(record.pluginId) ?? {
+    title: record.pluginId,
+    icon: "",
+    version: record.version,
+  }), route });
   const url = appUrl(iid, route);
   if (push && window.location.pathname !== url) {
     if (replace) window.history.replaceState(null, "", url);
@@ -239,6 +387,7 @@ function closeApp(): void {
   rt.fm.state.closeApp();
   document.getElementById(APP_STAGE_ID)?.classList.add("hidden");
   document.getElementById(CANVAS_ID)?.classList.remove("hidden");
+  rt.shell.setApp(null);
   postAll("resume", null);
   if (window.location.pathname !== "/") window.history.pushState(null, "", "/");
 }
@@ -265,19 +414,67 @@ function appContainer(root?: HTMLElement): HTMLElement {
   return created;
 }
 
+function isFileDrag(event: DragEvent): boolean {
+  return Array.from(event.dataTransfer?.types ?? []).includes("Files");
+}
+
+/** Drag-and-drop upload: an archive can be dropped anywhere on the page. */
+function watchDrops(): void {
+  if (dropBound) return;
+  dropBound = true;
+  const hide = (): void => {
+    dropDepth = 0;
+    if (dropOverlay !== null) dropOverlay.hidden = true;
+  };
+  window.addEventListener("dragenter", (event) => {
+    if (!isFileDrag(event)) return;
+    event.preventDefault();
+    dropDepth += 1;
+    if (dropOverlay !== null) dropOverlay.hidden = false;
+  });
+  window.addEventListener("dragover", (event) => {
+    if (isFileDrag(event)) event.preventDefault();
+  });
+  window.addEventListener("dragleave", () => {
+    dropDepth = Math.max(0, dropDepth - 1);
+    if (dropDepth === 0 && dropOverlay !== null) dropOverlay.hidden = true;
+  });
+  window.addEventListener("drop", (event) => {
+    if (!isFileDrag(event)) return;
+    event.preventDefault();
+    hide();
+    const file = event.dataTransfer?.files[0];
+    if (file !== undefined) void runtime?.shell.upload(file);
+  });
+}
+
 export function boot(opts: BootOptions = {}): FrameManager {
+  applyStoredTheme();
   const root = appContainer(opts.root);
   root.replaceChildren();
 
-  const shellRoot = document.createElement("header");
+  const shellRoot = document.createElement("aside");
   shellRoot.id = "shell";
+  shellRoot.className = "catalog";
+  const backdrop = document.createElement("div");
+  backdrop.className = "catalog-backdrop";
+  backdrop.dataset.catalogBackdrop = "";
+  const workspace = document.createElement("div");
+  workspace.className = "workspace";
+  const bar = document.createElement("header");
   const canvasRoot = document.createElement("main");
   canvasRoot.id = CANVAS_ID;
   const stageRoot = document.createElement("section");
   stageRoot.id = APP_STAGE_ID;
   stageRoot.classList.add("hidden");
-  stageRoot.innerHTML = `<button type="button" class="close-app" data-close-app title="Закрыть">×</button><div id="${APP_FRAME_ID}" class="app-frame"></div>`;
-  root.append(shellRoot, canvasRoot, stageRoot);
+  stageRoot.innerHTML = `<div id="${APP_FRAME_ID}" class="app-frame"></div>`;
+  const toastRoot = document.createElement("div");
+  dropOverlay = document.createElement("div");
+  dropOverlay.className = "drop-overlay";
+  dropOverlay.hidden = true;
+  dropOverlay.innerHTML = `<div class="drop-card">${icon("upload", 28)}<span>Отпустите, чтобы загрузить плагин</span></div>`;
+  workspace.append(bar, canvasRoot, stageRoot, toastRoot);
+  root.append(shellRoot, backdrop, workspace, dropOverlay);
 
   const registry = new RegistryClient({ fetch: opts.fetch, baseUrl: opts.baseUrl });
   const adapter = new DemoHostAdapter({
@@ -289,6 +486,9 @@ export function boot(opts: BootOptions = {}): FrameManager {
     // A plugin's navigate envelope must be echoed back as `route` (spec §12):
     // only the host knows the full /app/<iid>/<path> URL.
     onNavigate: (iid, path, replace) => showApp(iid, path, true, replace),
+    // Plugins see the theme the chrome is painted in.
+    getTheme: currentTheme,
+    onNotify: (notification) => rt.toasts.push(notification.message, notification.level),
   });
   const fm = createFrameManager({ adapter, onFrameError: showFrameError });
   const rt: Runtime = {
@@ -296,6 +496,7 @@ export function boot(opts: BootOptions = {}): FrameManager {
     registry,
     launcher: null as unknown as AppLauncher,
     shell: null as unknown as Shell,
+    toasts: new Toasts(toastRoot),
     frames: new Map(),
     appIid: null,
   };
@@ -303,23 +504,32 @@ export function boot(opts: BootOptions = {}): FrameManager {
   setCanvasResizeHandler((path, ratio) => fm.state.resize(path, ratio));
 
   const switchVersion = (pluginId: string, version: string): void => {
+    const before = rt.shell.describe(pluginId)?.version ?? "?";
     void (async () => {
-      await registry.setActive(pluginId, version);
-      await fm.upgrade(pluginId, version);
-      syncFramesFromDom();
-    })()
-      .catch((error: unknown) => {
+      try {
+        await registry.setActive(pluginId, version);
+        await fm.upgrade(pluginId, version);
+      } catch (error: unknown) {
         rt.shell.showStatus(`Не удалось обновить плагин: ${errorMessage(error)}`, "error");
-      })
-      .then(() => rt.shell.refresh())
-      .catch((error: unknown) => {
+        return;
+      }
+      syncFramesFromDom();
+      try {
+        await rt.shell.refresh();
+      } catch (error: unknown) {
         rt.shell.showStatus(`Не удалось обновить данные реестра: ${errorMessage(error)}`, "error");
-      });
+        return;
+      }
+      refreshTileHeaders();
+      const title = rt.shell.describe(pluginId)?.title ?? pluginId;
+      rt.shell.showStatus(`${title}: ${before} → ${version}. Данные и раскладка сохранены`, "success");
+    })();
   };
 
   rt.shell = new Shell(
     {
       registry,
+      toasts: rt.toasts,
       onAddWidget: (pluginId) => {
         void (async () => {
           const [versions, active] = await Promise.all([
@@ -339,24 +549,31 @@ export function boot(opts: BootOptions = {}): FrameManager {
       onUpload: async (file) => {
         const result = await registry.upload(file);
         if (!result.ok) return result;
-        // Keep the server's message visible while the registry-derived UI
-        // (widgets, launcher and «доступно обновление») updates in place.
-        rt.shell.showStatus(result.message ?? "загружено", "info");
+        // The archive is in; refresh the registry-derived UI (catalog, update
+        // hints) in place. A failed refresh must not read as a clean success,
+        // so the error is reported as part of the upload outcome.
         try {
           await rt.shell.refresh();
+          return result;
         } catch (error: unknown) {
-          rt.shell.showStatus(
-            `${result.message ?? "загружено"}; не удалось обновить данные реестра: ${errorMessage(error)}`,
-            "error",
-          );
+          return {
+            ...result,
+            level: "error" as const,
+            message: `${result.message ?? "загружено"}; не удалось обновить данные реестра: ${errorMessage(error)}`,
+          };
         }
-        return result;
       },
-      onThemeToggle: () => undefined,
+      onThemeToggle: (theme) => fm.publish("theme.changed", { mode: theme }),
       onUpgrade: switchVersion,
       onRollback: switchVersion,
+      onCloseApp: closeApp,
+      instanceCount: (pluginId) =>
+        Object.values(fm.state.getInstances()).filter(
+          (record) => record.kind === "widget" && record.pluginId === pluginId,
+        ).length,
     },
     shellRoot,
+    bar,
   );
   rt.launcher = new AppLauncher(
     {
@@ -382,8 +599,7 @@ export function boot(opts: BootOptions = {}): FrameManager {
     },
   );
 
-  stageRoot.querySelector("[data-close-app]")?.addEventListener("click", closeApp);
-
+  watchDrops();
   renderCanvas();
   const target = parseAppUrl();
   if (target !== null && fm.state.getInstances()[target.iid]?.kind === "app") {
@@ -403,6 +619,11 @@ export function boot(opts: BootOptions = {}): FrameManager {
     })
     .catch((error: unknown) => {
       rt.shell.showStatus(`Не удалось обновить данные реестра: ${errorMessage(error)}`, "error");
+    })
+    // Titles and update hints come from the registry: repaint what used ids as a fallback.
+    .then(() => {
+      refreshTileHeaders();
+      syncChrome();
     });
 
   if (!popstateBound) {

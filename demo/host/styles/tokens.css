@@ -1,0 +1,82 @@
+/*
+ * Design tokens. Dark is the default; `html.light` switches every surface.
+ * Test hooks depend on the class name, not on the values below.
+ */
+:root {
+  color-scheme: dark;
+  --bg: #0f1115;
+  --panel: #171a21;
+  --panel-2: #1f232c;
+  --panel-3: #272c37;
+  --line: #262a33;
+  --line-strong: #343a46;
+  --text: #e6e8ec;
+  --text-muted: #9aa1ad;
+  --text-faint: #6f7684;
+  --accent: #6366f1;
+  --accent-hover: #7679f3;
+  --accent-soft: rgba(99, 102, 241, 0.16);
+  --accent-line: rgba(99, 102, 241, 0.45);
+  --on-accent: #ffffff;
+  --success: #34d399;
+  --success-soft: rgba(52, 211, 153, 0.14);
+  --success-line: rgba(52, 211, 153, 0.45);
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.14);
+  --danger-line: rgba(248, 113, 113, 0.45);
+  --warning: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, 0.14);
+  --dot: rgba(255, 255, 255, 0.07);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 12px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  --scrim: rgba(0, 0, 0, 0.55);
+
+  --radius-s: 6px;
+  --radius: 10px;
+  --radius-l: 14px;
+
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-6: 24px;
+
+  --sidebar-w: 272px;
+  --header-h: 48px;
+  --gutter: 10px;
+
+  --focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+  --speed: 140ms;
+}
+
+:root.light {
+  color-scheme: light;
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --panel-2: #f3f4f6;
+  --panel-3: #e9ebef;
+  --line: #e4e7ec;
+  --line-strong: #cfd4dc;
+  --text: #111827;
+  --text-muted: #6b7280;
+  --text-faint: #9aa1ad;
+  --accent: #4f46e5;
+  --accent-hover: #6366f1;
+  --accent-soft: rgba(79, 70, 229, 0.1);
+  --accent-line: rgba(79, 70, 229, 0.4);
+  --success: #059669;
+  --success-soft: rgba(5, 150, 105, 0.12);
+  --success-line: rgba(5, 150, 105, 0.4);
+  --danger: #dc2626;
+  --danger-soft: rgba(220, 38, 38, 0.1);
+  --danger-line: rgba(220, 38, 38, 0.4);
+  --warning: #d97706;
+  --warning-soft: rgba(217, 119, 6, 0.12);
+  --dot: rgba(17, 24, 39, 0.09);
+  --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+  --shadow-2: 0 12px 32px rgba(16, 24, 40, 0.16), 0 0 0 1px rgba(16, 24, 40, 0.05);
+  --scrim: rgba(17, 24, 39, 0.35);
+}

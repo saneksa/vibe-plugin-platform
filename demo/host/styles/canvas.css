@@ -1,0 +1,300 @@
+/*
+ * Canvas: tiled widgets, splitters, the empty state and the app stage.
+ * Inline `style.flex` on branches is the layout contract (tests read it);
+ * everything visual lives here.
+ */
+
+#vibe-canvas {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--sp-3);
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--dot) 1px, transparent 1.4px);
+  background-size: 24px 24px;
+  background-position: 12px 12px;
+}
+
+/* Every pane grows to fill its parent, be it the canvas or a branch. */
+.pane {
+  flex: 1 1 0%;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* A leaf is a flex column of its own. Without this the slot inside it
+   collapses to the iframe's intrinsic 150px instead of filling the canvas. */
+.pane.leaf {
+  display: flex;
+  flex-direction: column;
+}
+
+.branch {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* ---------- Splitters ---------- */
+
+/* The divider is the hit area itself; the thin line is drawn on top of it. */
+.divider {
+  position: relative;
+  flex: 0 0 var(--gutter);
+  outline: none;
+}
+
+.divider::before {
+  content: "";
+  position: absolute;
+  border-radius: 2px;
+  background: var(--line-strong);
+  transition: background var(--speed);
+}
+
+/* `flex-direction: row` puts panes side by side behind a vertical line. */
+.pane.split:not([style*="column"]) > .divider { cursor: col-resize; }
+.pane.split:not([style*="column"]) > .divider::before {
+  top: 8px;
+  bottom: 8px;
+  left: calc(50% - 1px);
+  width: 2px;
+}
+
+.pane.split[style*="column"] > .divider { cursor: row-resize; }
+.pane.split[style*="column"] > .divider::before {
+  left: 8px;
+  right: 8px;
+  top: calc(50% - 1px);
+  height: 2px;
+}
+
+.divider:hover::before,
+.divider[data-active]::before { background: var(--accent); }
+
+.divider:focus-visible {
+  box-shadow: none;
+}
+
+.divider:focus-visible::before {
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+/* ---------- Widget tile ---------- */
+
+.frame-slot {
+  position: relative;
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow-1);
+  transition: border-color var(--speed);
+}
+
+.frame-slot:hover { border-color: var(--line-strong); }
+
+.widget-head {
+  display: flex;
+  grid-row: 1;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 36px;
+  padding: 0 4px 0 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-2);
+}
+
+.widget-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.widget-remove {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background var(--speed), color var(--speed);
+}
+
+.widget-remove:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* The frame is appended by host-core and rebuilt in place, so its grid cell
+   is fixed by rule rather than by DOM order. */
+.frame-slot > iframe,
+.widget-loading { grid-row: 2; }
+
+.frame-slot > iframe {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  background: var(--panel);
+}
+
+/* ---------- Loading state ---------- */
+
+.widget-loading {
+  display: none;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
+  background: var(--panel);
+}
+
+.frame-slot[data-loading] .widget-loading { display: flex; }
+.frame-slot[data-loading] > iframe { visibility: hidden; }
+
+.skeleton {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--panel-2) 0%, var(--panel-3) 50%, var(--panel-2) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+
+.skeleton.w-40 { width: 40%; }
+.skeleton.w-70 { width: 70%; }
+.skeleton.tall { height: 56px; border-radius: var(--radius); }
+
+@keyframes shimmer {
+  to { background-position: -200% 0; }
+}
+
+/* ---------- Error card (handshake timeout and other frame failures) ---------- */
+
+.frame-error {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 13px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.frame-error::before {
+  content: "";
+  width: 28px;
+  height: 28px;
+  flex: none;
+  background: var(--warning);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z'/%3E%3Cpath d='M12 9v4M12 17h.01'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z'/%3E%3Cpath d='M12 9v4M12 17h.01'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* ---------- Empty canvas ---------- */
+
+.canvas-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  max-width: 440px;
+  margin: auto;
+  padding: var(--sp-6);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.empty-art {
+  margin-bottom: var(--sp-2);
+  color: var(--text-faint);
+}
+
+.empty-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.empty-text { font-size: 13px; }
+
+.empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+
+.empty-actions .plugin-icon-sm { color: var(--accent); }
+
+/* ---------- Full-screen app ---------- */
+
+#app-stage {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+  padding: var(--sp-3);
+}
+
+.app-frame {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow-1);
+}
+
+.app-frame > iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--panel);
+}
+
+.app-frame[data-loading] > iframe { visibility: hidden; }
+
+.app-frame[data-loading]::after {
+  content: "";
+  position: absolute;
+  inset: var(--sp-4);
+  border-radius: var(--radius);
+  background: linear-gradient(90deg, var(--panel-2) 0%, var(--panel-3) 50%, var(--panel-2) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton,
+  .app-frame[data-loading]::after { animation: none; }
+}

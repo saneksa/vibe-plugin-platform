@@ -35,6 +35,10 @@ export interface DemoAdapterConfig {
   store: KeyValueStore;
   hostVersion: string;
   onNavigate?: (iid: string, path: string, replace: boolean) => void;
+  /** Theme reported to plugins through `context.get` / `theme.get`; "dark" when unset. */
+  getTheme?: () => string;
+  /** Sink for `notify.show`; notifications are dropped when it is not set. */
+  onNotify?: (notification: { level: string; message: string }, ctx: RpcContext) => void;
 }
 
 const CONTEXT = {
@@ -58,9 +62,13 @@ export class DemoHostAdapter implements HostAdapter {
     return { ...getMeta(getPolicy()), hostVersion: this.cfg.hostVersion };
   }
 
+  private theme(): string {
+    return this.cfg.getTheme?.() ?? CONTEXT.theme;
+  }
+
   getContext(): HostContext {
     return {
-      theme: CONTEXT.theme,
+      theme: this.theme(),
       locale: CONTEXT.locale,
       user: { ...CONTEXT.user },
       hostVersion: this.cfg.hostVersion,
@@ -76,7 +84,7 @@ export class DemoHostAdapter implements HostAdapter {
 
     switch (method) {
       case "theme.get":
-        return { mode: this.getContext().theme };
+        return { mode: this.theme() };
 
       case "storage.set": {
         const { key, value } = params as { key: string; value: unknown };
@@ -97,7 +105,12 @@ export class DemoHostAdapter implements HostAdapter {
         return true;
       }
 
-      case "notify.show":
+      case "notify.show": {
+        const { level, message } = (params ?? {}) as { level?: string; message?: string };
+        this.cfg.onNotify?.({ level: level ?? "info", message: message ?? "" }, ctx);
+        return true;
+      }
+
       case "host.log":
         return true;
 

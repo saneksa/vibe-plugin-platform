@@ -39,6 +39,8 @@ test("§16 full scenario: upload → two widgets → upgrade → rollback → re
   request,
 }) => {
   test.setTimeout(240_000);
+  const viewport = page.viewportSize();
+  if (viewport === null) throw new Error("no viewport");
 
   async function upload(path: string, expectedButton?: string): Promise<void> {
     await page.locator("input[data-upload]").setInputFiles(path);
@@ -77,6 +79,13 @@ test("§16 full scenario: upload → two widgets → upgrade → rollback → re
     .locator("#vibe-canvas .frame-slot")
     .evaluateAll((els) => els.map((el) => (el as HTMLElement).dataset.iid!));
   expect(iids[0]).not.toBe(iids[1]);
+  // Tiles fill the canvas. (A CSS regression once left them at the iframe's
+  // intrinsic 150px, with most of the screen empty below.)
+  for (const box of await page.locator("#vibe-canvas .frame-slot").evaluateAll((els) =>
+    els.map((el) => el.getBoundingClientRect().height),
+  )) {
+    expect(box).toBeGreaterThan(viewport.height * 0.6);
+  }
   for (const iid of iids) {
     await expect(widgetFrame(page, iid).locator(".clock-version")).toHaveText("clock 1.2.0");
   }
@@ -149,8 +158,7 @@ test("§16 full scenario: upload → two widgets → upgrade → rollback → re
   await page.reload();
   await expect(page.locator("#app-frame iframe")).toBeVisible();
   const appBox = await page.locator("#app-frame").boundingBox();
-  const viewport = page.viewportSize();
-  if (appBox === null || viewport === null) throw new Error("no app frame box");
+  if (appBox === null) throw new Error("no app frame box");
   expect(appBox.height).toBeGreaterThan(viewport.height * 0.8);
   await expect(notes.locator(".notes-route")).toHaveText("route: /settings/:tab");
   expect(await layoutSnapshot(page)).toEqual(resized);
@@ -183,5 +191,10 @@ test("§16 full scenario: upload → two widgets → upgrade → rollback → re
   await expect(page.locator(".brand")).toBeVisible();
   for (const iid of iids) {
     await expect(widgetFrame(page, iid).locator(".clock-version")).toHaveText("clock 2.0.0");
+  }
+  // The theme reaches the plugins: clock 2.0.0 subscribes to `theme.changed`
+  // and mirrors the host theme onto its own document element.
+  for (const iid of iids) {
+    await expect(widgetFrame(page, iid).locator("html")).toHaveAttribute("data-theme", "light");
   }
 });

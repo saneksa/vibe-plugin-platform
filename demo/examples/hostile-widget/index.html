@@ -3,7 +3,111 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>My plugin</title>
+    <title>Hostile widget</title>
+    <style>
+      /* The page is designed dark. `attacks.ts` injects a global rule that
+         paints this frame's <body> red: it is the visible half of the "global
+         CSS applied" probe, and it reaches nothing outside this document. */
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: #15171c;
+        color: #e6e8ec;
+        font: 13px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+      /* Dark native scrollbars: the page is dark whatever the host theme is. */
+      html {
+        color-scheme: dark;
+      }
+      body {
+        box-sizing: border-box;
+        min-height: 100vh;
+        padding: 12px;
+      }
+      .hostile-widget {
+        box-sizing: border-box;
+        /* Fills the frame exactly: body padding is subtracted from the height. */
+        min-height: calc(100vh - 24px);
+        padding: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 14px;
+        background: #15171c;
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+      }
+      .hostile-widget h2 {
+        margin: 0 0 4px;
+        font-size: 15px;
+        font-weight: 600;
+      }
+      .hostile-widget p {
+        margin: 0 0 10px;
+        color: #9aa1ad;
+      }
+      .hostile-widget ul {
+        display: flex;
+        flex-direction: column;
+        margin: 0;
+        padding: 0;
+        border: 1px solid #262a33;
+        border-radius: 10px;
+        list-style: none;
+        overflow: hidden;
+      }
+      .hostile-widget li {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 3px 12px;
+        border-bottom: 1px solid #262a33;
+        font: 12px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      }
+      .hostile-widget li:last-child {
+        border-bottom: 0;
+      }
+      /* One dot per probe: green = the host stopped it, amber = it happened
+         inside this frame only, red = it would have reached the host. */
+      .hostile-widget li::before {
+        content: "";
+        flex: none;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #6f7684;
+      }
+      .hostile-widget li[data-state="blocked"]::before {
+        background: #34d399;
+      }
+      .hostile-widget li[data-state="true"]::before {
+        background: #fbbf24;
+      }
+      .hostile-widget li[data-state="allowed"]::before {
+        background: #f87171;
+      }
+      .probe-name {
+        color: #9aa1ad;
+      }
+      .probe-value {
+        margin-left: auto;
+        font-weight: 600;
+      }
+      .hostile-note {
+        margin-top: 12px;
+        color: #6f7684;
+        font-size: 12px;
+      }
+      /* Short tiles: the ten probes come first. A tighter card keeps them all
+         in view without scrolling from about 350px of frame height. */
+      @media (max-height: 620px) {
+        .hostile-widget {
+          padding: 14px;
+        }
+
+        .hostile-note {
+          display: none;
+        }
+      }
+    </style>
   </head>
   <body>
     <script type="module" src="./dist/bundle.js"></script>

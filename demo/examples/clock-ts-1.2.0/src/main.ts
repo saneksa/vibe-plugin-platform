@@ -34,12 +34,14 @@ createPlugin({
     const paintTime = (): void => {
       time.textContent = new Date().toLocaleTimeString();
     };
+    // The stylesheet keys on <html data-theme>, so the whole page (background
+    // included) follows the host theme, not just the widget root.
     const onTheme = (value: unknown): void => {
       const next =
         typeof value === "object" && value !== null && "mode" in value
           ? String((value as { mode: unknown }).mode)
           : String(value);
-      el.dataset.theme = next;
+      document.documentElement.dataset.theme = next;
       mode.textContent = `theme: ${next}`;
     };
 

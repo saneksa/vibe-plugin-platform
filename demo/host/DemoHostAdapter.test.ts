@@ -155,6 +155,38 @@ describe("DemoHostAdapter", () => {
     await expect(a.dispatchRpc("host.log", { level: "warn", args: ["a"] }, ctx())).resolves.toBe(true);
   });
 
+  it("getTheme feeds context.get and theme.get; without it the theme stays dark", async () => {
+    let theme = "light";
+    const { cfg } = makeConfig({ getTheme: () => theme });
+    const a = new DemoHostAdapter(cfg);
+
+    expect(a.getContext().theme).toBe("light");
+    expect(await a.dispatchRpc("theme.get", undefined, ctx())).toEqual({ mode: "light" });
+
+    theme = "dark";
+    expect(await a.dispatchRpc("theme.get", undefined, ctx())).toEqual({ mode: "dark" });
+  });
+
+  it("notify.show is forwarded to onNotify with its RPC context", async () => {
+    const onNotify = vi.fn();
+    const { cfg } = makeConfig({ onNotify });
+    const a = new DemoHostAdapter(cfg);
+    const context = ctx({ caps: ["notify"] });
+
+    await a.dispatchRpc("notify.show", { level: "warn", message: "disk almost full" }, context);
+
+    expect(onNotify).toHaveBeenCalledWith({ level: "warn", message: "disk almost full" }, context);
+  });
+
+  it("notify.show without onNotify still resolves and defaults missing fields", async () => {
+    const onNotify = vi.fn();
+    const { cfg } = makeConfig({ onNotify });
+    const a = new DemoHostAdapter(cfg);
+
+    await expect(a.dispatchRpc("notify.show", undefined, ctx())).resolves.toBe(true);
+    expect(onNotify).toHaveBeenCalledWith({ level: "info", message: "" }, ctx());
+  });
+
   it("storage.set/get/remove round-trip JSON values with string or object params", async () => {
     const { cfg } = makeConfig();
     const a = new DemoHostAdapter(cfg);

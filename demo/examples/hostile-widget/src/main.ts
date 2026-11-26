@@ -5,6 +5,14 @@
 import { createPlugin } from "@vibe/plugin-contracts/sdk";
 import { runAttacks, type AttackReport } from "./attacks";
 
+/** How a probe's outcome reads: stopped by the host, contained here, or a leak. */
+function stateOf(value: string | boolean): string {
+  if (value === "blocked") return "blocked";
+  if (value === true) return "true";
+  if (value === "ALLOWED") return "allowed";
+  return "neutral";
+}
+
 createPlugin({
   mount(el, host) {
     el.classList.add("hostile-widget");
@@ -14,13 +22,26 @@ createPlugin({
     const hint = document.createElement("p");
     hint.textContent = "Every attempt below stays inside this frame.";
     const list = document.createElement("ul");
-    el.append(heading, hint, list);
+    const note = document.createElement("div");
+    note.className = "hostile-note";
+    note.textContent =
+      "The red around this card is the widget's own global CSS reaching its <body>. The host did not change.";
+    el.append(heading, hint, list, note);
 
     const render = (report: AttackReport): void => {
       list.replaceChildren();
       for (const [name, value] of Object.entries(report)) {
         const row = document.createElement("li");
-        row.textContent = `${name}: ${String(value)}`;
+        row.dataset.state = stateOf(value);
+        const key = document.createElement("span");
+        key.className = "probe-name";
+        // The colon belongs to the name visually; the space keeps the row's
+        // text reading `name: value` (the e2e scenario matches on it).
+        key.textContent = `${name}:`;
+        const result = document.createElement("span");
+        result.className = "probe-value";
+        result.textContent = String(value);
+        row.append(key, document.createTextNode(" "), result);
         list.append(row);
       }
     };

@@ -8,7 +8,7 @@
   "title": "Clock (Vue)",
   "icon": "clock",
   "entry": "index.html",
-  "capabilities": ["theme.read", "notify"],
+  "capabilities": ["theme.read", "events.read", "notify"],
   "defaultSize": { "w": 320, "h": 200 },
   "minSize": { "w": 240, "h": 140 }
 }
