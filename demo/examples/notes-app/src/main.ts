@@ -28,10 +28,11 @@ createPlugin({
     el.classList.add("notes-app");
 
     const header = document.createElement("header");
+    header.className = "notes-bar";
     const title = document.createElement("h1");
-    header.append(title);
-
+    title.textContent = "Notes";
     const nav = document.createElement("nav");
+    nav.setAttribute("aria-label", "Sections");
     const button = (label: string, path: string): HTMLButtonElement => {
       const control = document.createElement("button");
       control.type = "button";
@@ -40,11 +41,22 @@ createPlugin({
       return control;
     };
     nav.append(button("Home", "/"), button("List", "/list"), button("Settings", "/settings/general"));
-
     const routeLabel = document.createElement("div");
     routeLabel.className = "notes-route";
+    header.append(title, nav, routeLabel);
     const content = document.createElement("main");
-    el.append(header, nav, routeLabel, content);
+    el.append(header, content);
+
+    // The stylesheet keys on <html data-theme>, so the whole page follows the host.
+    const onTheme = (value: unknown): void => {
+      const next =
+        typeof value === "object" && value !== null && "mode" in value
+          ? String((value as { mode: unknown }).mode)
+          : String(value);
+      document.documentElement.dataset.theme = next;
+    };
+    void host.theme.get().then(onTheme).catch(() => undefined);
+    host.on("theme.changed", onTheme);
 
     const state = { items: [] as string[], route: "/", params: {} as Params };
 
@@ -53,16 +65,24 @@ createPlugin({
     };
     const paint = (): void => {
       routeLabel.textContent = `route: ${state.route}`;
+      // Highlight the tab that owns the current route pattern.
+      const current = state.route === "/" ? 0 : state.route === "/list" ? 1 : 2;
+      Array.from(nav.children).forEach((control, index) => {
+        if (index === current) control.setAttribute("aria-current", "page");
+        else control.removeAttribute("aria-current");
+      });
       content.replaceChildren();
-      title.textContent = "Notes";
 
       if (state.route === "/") {
+        const form = document.createElement("div");
+        form.className = "notes-form";
         const input = document.createElement("input");
         input.type = "text";
         input.placeholder = "A new note";
         input.setAttribute("aria-label", "new note");
         const add = document.createElement("button");
         add.type = "button";
+        add.className = "btn";
         add.textContent = "Save note";
         add.addEventListener("click", () => {
           const value = input.value.trim();
@@ -72,9 +92,11 @@ createPlugin({
           persist();
           paint();
         });
-        content.append(input, add);
+        form.append(input, add);
+        content.append(form);
       } else if (state.route === "/list") {
         const list = document.createElement("ul");
+        list.className = "notes-list";
         for (const item of state.items) {
           const entry = document.createElement("li");
           entry.textContent = item;
@@ -82,11 +104,13 @@ createPlugin({
         }
         if (state.items.length === 0) {
           const empty = document.createElement("li");
+          empty.className = "is-empty";
           empty.textContent = "No notes yet";
           list.append(empty);
         }
         const clear = document.createElement("button");
         clear.type = "button";
+        clear.className = "btn btn-ghost";
         clear.textContent = "Clear all";
         clear.addEventListener("click", () => {
           state.items = [];
@@ -96,6 +120,7 @@ createPlugin({
         content.append(list, clear);
       } else if (state.route === "/settings/:tab") {
         const setting = document.createElement("p");
+        setting.className = "notes-setting";
         setting.textContent = `Settings tab: ${state.params.tab ?? ""}`;
         content.append(setting);
       }
@@ -132,6 +157,7 @@ createPlugin({
 
     return () => {
       view = undefined;
+      host.off("theme.changed", onTheme);
       el.replaceChildren();
     };
   },

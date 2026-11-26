@@ -11,6 +11,8 @@ import type { RegistryTransport } from "./DemoHostAdapter.js";
 export interface UploadResult {
   ok: boolean;
   message?: string;
+  /** How the host reports the message; `info` for a success, `error` otherwise. */
+  level?: "info" | "error";
 }
 
 export interface RegistryClientOptions {

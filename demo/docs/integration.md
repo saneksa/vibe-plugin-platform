@@ -129,6 +129,10 @@ fm.unmount(iid);                                   // lifecycle:destroy + уда
 - `iframe` создаётся с `sandbox="allow-scripts allow-same-origin allow-forms"`;
   `allow-same-origin` безопасен только потому, что origin плагина отличен от
   origin хоста. `allow-top-navigation`/`allow-popups` запрещены.
+- `upgrade` и `restore` пересоздают `iframe` **на месте**, в тот же контейнер.
+  Всё, что ваш UI добавляет к фрейму (атрибут `title`, состояние загрузки),
+  навешивайте заново после этих вызовов — в демо это `decorateFrame()` и
+  `syncFramesFromDom()` в `demo/host/main.ts`.
 - CSP на статика плагинов: `default-src 'self'; connect-src 'none';
   frame-ancestors <origin хоста>`. Демо добавляет `'unsafe-inline'` в
   `script-src`, потому что `pack` инжектирует синхронный `__VIBE_BOOT__`

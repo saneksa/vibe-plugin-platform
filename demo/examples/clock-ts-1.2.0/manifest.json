@@ -5,7 +5,7 @@
   "version": "1.2.0",
   "hostApi": "^2",
   "sdk": "2.0.0",
-  "title": "Clock (TypeScript) 1.2.0",
+  "title": "Clock (TypeScript)",
   "icon": "clock",
   "entry": "index.html",
   "capabilities": ["theme.read", "events.read", "storage.read", "storage.write", "notify"],

@@ -8,7 +8,14 @@
   "title": "Notes",
   "icon": "note",
   "entry": "index.html",
-  "capabilities": ["storage.read", "storage.write", "navigate", "notify"],
+  "capabilities": [
+    "storage.read",
+    "storage.write",
+    "navigate",
+    "notify",
+    "theme.read",
+    "events.read"
+  ],
   "routes": ["/", "/list", "/settings/:tab"],
   "defaultSize": { "w": 900, "h": 600 },
   "minSize": { "w": 400, "h": 300 }
