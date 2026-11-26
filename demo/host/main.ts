@@ -255,8 +255,18 @@ function applyLocation(): void {
   }
 }
 
+function appContainer(root?: HTMLElement): HTMLElement {
+  if (root !== undefined) return root;
+  const existing = document.getElementById("app");
+  if (existing !== null) return existing;
+  const created = document.createElement("div");
+  created.id = "app";
+  document.body.appendChild(created);
+  return created;
+}
+
 export function boot(opts: BootOptions = {}): FrameManager {
-  const root = opts.root ?? document.body;
+  const root = appContainer(opts.root);
   root.replaceChildren();
 
   const shellRoot = document.createElement("header");

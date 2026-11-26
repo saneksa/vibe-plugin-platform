@@ -222,6 +222,18 @@ describe("demo host", () => {
     expect(document.querySelectorAll(`#${CANVAS_ID} iframe`)).toHaveLength(1);
   });
 
+  it("boot mounts the shell and full-screen stage inside the #app flex container", async () => {
+    const fm = boot();
+    const app = document.querySelector<HTMLElement>("#app");
+    if (app === null) throw new Error("#app container missing");
+
+    expect(app.parentElement).toBe(document.body);
+    expect(app.querySelector("#shell")).not.toBeNull();
+    expect(app.querySelector(`#${CANVAS_ID}`)).not.toBeNull();
+    expect(app.querySelector("#app-stage")).not.toBeNull();
+    expect(document.body.querySelector(":scope > #app-stage")).toBeNull();
+  });
+
   it("deep-link /app/<iid>/<path> resolves iid from registry and passes route", () => {
     seedApp("i7");
     window.history.pushState(null, "", "/app/i7/settings/general");

@@ -148,6 +148,10 @@ test("§16 full scenario: upload → two widgets → upgrade → rollback → re
 
   await page.reload();
   await expect(page.locator("#app-frame iframe")).toBeVisible();
+  const appBox = await page.locator("#app-frame").boundingBox();
+  const viewport = page.viewportSize();
+  if (appBox === null || viewport === null) throw new Error("no app frame box");
+  expect(appBox.height).toBeGreaterThan(viewport.height * 0.8);
   await expect(notes.locator(".notes-route")).toHaveText("route: /settings/:tab");
   expect(await layoutSnapshot(page)).toEqual(resized);
   await page.locator("[data-close-app]").click();
