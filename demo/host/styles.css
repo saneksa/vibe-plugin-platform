@@ -110,6 +110,24 @@ html, body, #app {
   font-size: 13px;
 }
 
+.widget-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.widget-remove:hover { border-color: var(--accent); }
+
 .widget-menu {
   position: fixed;
   z-index: 10;

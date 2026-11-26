@@ -118,6 +118,17 @@ function closeWidgetMenu(): void {
   document.querySelector("[data-widget-menu]")?.remove();
 }
 
+/** Shared by the right-click menu and the corner icon: remove via host-core. */
+function removeWidget(iid: string): void {
+  const rt = runtime;
+  if (rt === null) return;
+  closeWidgetMenu();
+  rt.fm.unmount(iid);
+  rt.fm.state.removeWidget(iid);
+  rt.frames.delete(iid);
+  renderCanvas();
+}
+
 /** Right-click menu for one widget pane; deletion goes through host-core. */
 function showWidgetMenu(iid: string, x: number, y: number): void {
   const rt = runtime;
@@ -133,13 +144,7 @@ function showWidgetMenu(iid: string, x: number, y: number): void {
   remove.dataset.removeWidget = iid;
   remove.dataset.iid = iid;
   remove.textContent = "Удалить виджет";
-  remove.addEventListener("click", () => {
-    closeWidgetMenu();
-    rt.fm.unmount(iid);
-    rt.fm.state.removeWidget(iid);
-    rt.frames.delete(iid);
-    renderCanvas();
-  });
+  remove.addEventListener("click", () => removeWidget(iid));
   menu.appendChild(remove);
   document.body.appendChild(menu);
   widgetMenuClose = () => closeWidgetMenu();
@@ -156,6 +161,15 @@ function renderCanvas(): void {
     rt.fm.mount(slot, iid);
     const frame = slot.querySelector<HTMLIFrameElement>("iframe");
     if (frame !== null) rt.frames.set(iid, frame);
+    const icon = document.createElement("button");
+    icon.type = "button";
+    icon.className = "widget-remove";
+    icon.dataset.removeWidget = iid;
+    icon.dataset.iid = iid;
+    icon.title = "Удалить виджет";
+    icon.textContent = "×";
+    icon.addEventListener("click", () => removeWidget(iid));
+    slot.appendChild(icon);
   }, showWidgetMenu);
 }
 

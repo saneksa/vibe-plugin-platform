@@ -172,10 +172,33 @@ describe("demo host", () => {
       }),
     );
 
-    const remove = document.querySelector<HTMLElement>("[data-remove-widget]");
+    const remove = document.querySelector<HTMLElement>("[data-widget-menu] [data-remove-widget]");
     if (remove === null) throw new Error("context menu missing");
     expect(remove.dataset.iid).toBe(iid);
     remove.click();
+
+    await vi.waitFor(() =>
+      expect(document.querySelectorAll(`#${CANVAS_ID} iframe`)).toHaveLength(0),
+    );
+    expect(fm.state.getInstances()[iid]).toBeUndefined();
+    expect(fm.state.getLayout()).toBeNull();
+  });
+
+  it("corner delete icon removes a widget whose iframe fills the pane", async () => {
+    const fm = boot();
+    await clickAdd("clock");
+    const iid = Object.keys(fm.state.getInstances())[0]!;
+    const slot = document.querySelector<HTMLElement>(
+      `#${CANVAS_ID} .frame-slot[data-iid="${iid}"]`,
+    );
+    if (slot === null) throw new Error("frame slot missing");
+    expect(slot.querySelector("iframe")).not.toBeNull();
+
+    const icon = slot.querySelector<HTMLElement>("[data-remove-widget]");
+    if (icon === null) throw new Error("corner delete icon missing");
+    expect(icon.parentElement).toBe(slot);
+    expect(icon.classList.contains("widget-remove")).toBe(true);
+    icon.click();
 
     await vi.waitFor(() =>
       expect(document.querySelectorAll(`#${CANVAS_ID} iframe`)).toHaveLength(0),
