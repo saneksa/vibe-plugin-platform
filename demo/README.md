@@ -105,8 +105,9 @@ Playwright сам пакует примеры и стартует демо че�
 | --- | --- |
 | `clock-ts-1.2.0` | ванильный TS-виджет, `theme.read`, запись `k` в `host.storage` |
 | `clock-ts` | версия 2.0.0 того же `id` для обновления |
-| `clock-react` / `clock-vue` | тот же SDK с React 19 / Vue 3 |
+| `clock-react` / `clock-vue` | тот же SDK с React 19 (TSX) / Vue 3 (SFC) |
 | `notes-app` | полноэкранное приложение с роутами и back/forward |
+| `tasks-app` | приложение на **react-router**: мост между историей роутера и виртуальным URL хоста, deep link и 404 |
 | `hostile-widget` | семь атак §13, изоляция видна вживую |
 
 Подробности переноса в основную систему — [docs/integration.md](docs/integration.md).

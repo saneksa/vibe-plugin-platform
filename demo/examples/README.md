@@ -14,7 +14,8 @@ documents the canonical `file:../../contracts` link from
 | `clock-ts/` | `2.0.0` of the **same plugin**: same `id` (`clock`) and `hostApi: "^2"`, updated two-panel render reading the same note. |
 | `clock-react/` | React 19 in TSX (`src/main.tsx`, `jsx: react-jsx`) mounted with `createRoot` into the SDK's `el`. |
 | `clock-vue/` | Vue 3 SFC (`src/App.vue`) mounted with `createApp` into the SDK's `el`; the hostAPI arrives by `provide`/`inject`. |
-| `notes-app/` | `kind: "app"` with `routes: ["/", "/list", "/settings/:tab"]`, `storage.*` and `navigate`. |
+| `tasks-app/` | `kind: "app"` routed by **react-router**: the SDK route table feeds a small bridge (`src/hostRouting.tsx`) that mirrors app navigation into the host's `/app/<iid>/<path>` space. Storage-backed tasks/projects, filters, deep links, 404. |
+| `notes-app/` | `kind: "app"` with `routes: ["/", "/list", "/settings/:tab"]`, `storage.*` and `navigate` — the SDK route table drives the views directly, no router library. |
 | `hostile-widget/` | The seven §13 attacks from a normal SDK plugin (the standalone rig fixture in `contracts/conformance/fixtures/hostile-plugin` is separate). |
 
 ## Two directories, one plugin id
