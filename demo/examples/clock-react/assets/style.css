@@ -1,0 +1,112 @@
+/* Same look as the TypeScript and Vue clocks; only the framework differs.
+   Loaded via <link> from index.html — `vite dev` serves it statically with
+   CSS HMR, and `pack` ships the assets/ directory inside the archive. */
+:root {
+  color-scheme: dark;
+  --surface: #14161c;
+  --card: #1b1e26;
+  --line: #262a33;
+  --text: #e6e8ec;
+  --muted: #9aa1ad;
+  --faint: #6f7684;
+  --accent: #818cf8;
+  --accent-soft: rgba(129, 140, 248, 0.22);
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --surface: #ffffff;
+  --card: #f6f7f9;
+  --line: #e4e7ec;
+  --text: #111827;
+  --muted: #6b7280;
+  --faint: #9ca3af;
+  --accent: #4f46e5;
+  --accent-soft: rgba(79, 70, 229, 0.14);
+}
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--surface);
+  color: var(--text);
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+body {
+  box-sizing: border-box;
+  padding: 16px;
+}
+/* Size container: the digits scale with the tile, not with the window. */
+.clock {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  container-type: size;
+}
+/* React's root node takes no part in the layout of the SDK root. */
+.clock-inner {
+  display: contents;
+}
+.clock-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.clock-version {
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--muted);
+  font: 600 11px/1.2 var(--mono);
+}
+.clock-mode {
+  color: var(--muted);
+  font: 11px/1.2 var(--mono);
+}
+.clock-panel {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 0;
+  padding: clamp(8px, 5cqh, 28px) 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+}
+.clock-time {
+  font-size: clamp(28px, min(13cqw, 18cqh), 112px);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.clock-date {
+  color: var(--muted);
+  font-size: 15px;
+}
+.clock-notify {
+  height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 120ms, color 120ms;
+}
+.clock-notify:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.clock-notify:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
