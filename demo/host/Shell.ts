@@ -310,7 +310,7 @@ export class Shell {
           <form class="dev-form" data-dev-form>
             <input type="text" data-dev-id list="dev-plugin-ids" placeholder="id плагина (см. под строкой в каталоге)" aria-label="id плагина">
             <input type="text" data-dev-origin placeholder="http://localhost:5173" aria-label="dev-origin">
-            <button type="submit" class="btn btn-sm dev-chip" aria-label="Включить разработку" title="Фреймы этого плагина будут грузиться с dev-сервера">＋ dev</button>
+            <button type="submit" class="btn btn-accent dev-submit" aria-label="Включить разработку" title="Фреймы этого плагина будут грузиться с dev-сервера">＋ dev</button>
             <datalist id="dev-plugin-ids"></datalist>
           </form>
           <ul class="plugin-list" data-dev-list></ul>
