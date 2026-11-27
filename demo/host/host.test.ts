@@ -69,6 +69,9 @@ function stubFetch(fx: Fixture, postStatus = 200, postMessage = "uploaded") {
     if (method === "PUT" && url.includes("/api/plugins/")) {
       return response({ ...CLOCK });
     }
+    if (method === "DELETE" && url.includes("/api/plugins/")) {
+      return response({ ok: true });
+    }
     if (url.endsWith("/api/meta")) {
       return response({
         hostVersion: "2.4.0",
@@ -387,6 +390,7 @@ describe("demo host", () => {
         return response({ code: "HOST_API_UNSUPPORTED", message: "hostAPI 1 unsupported" }, 409);
       }
       if (method === "PUT") return response({ ...CLOCK });
+      if (method === "DELETE") return response({ ok: true });
       if (url.endsWith("/api/meta")) return response({ hostVersion: "2.4.0" });
       return response({}, 404);
     });
@@ -400,6 +404,12 @@ describe("demo host", () => {
     expect(fetchImpl).toHaveBeenCalledWith(
       "http://host.test/api/plugins/clock/active",
       expect.objectContaining({ method: "PUT", body: JSON.stringify({ version: "2.0.0" }) }),
+    );
+
+    expect(await client.deletePlugin("clock")).toBeUndefined();
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "http://host.test/api/plugins/clock",
+      expect.objectContaining({ method: "DELETE" }),
     );
 
     expect(await client.upload(new File(["x"], "old.zip"))).toEqual({
@@ -832,6 +842,71 @@ describe("demo host", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("the catalog trash uninstalls the plugin: backend, tiles and row", async () => {
+    // A mutable registry: the DELETE genuinely removes the plugin, so the
+    // refresh after it drops the row.
+    const versions = [CLOCK, NOTES];
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (url.endsWith("/api/plugins") && method === "GET") {
+        return response({
+          versions,
+          activeVersion: Object.fromEntries(versions.map((dto) => [dto.id, dto.version])),
+        });
+      }
+      if (method === "DELETE" && url.endsWith("/api/plugins/clock")) {
+        versions.splice(versions.findIndex((dto) => dto.id === "clock"), 1);
+        return response({ ok: true });
+      }
+      return response({}, 404);
+    });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.stubGlobal("fetch", fetchImpl);
+    const fm = boot();
+    await clickAdd("clock");
+    await clickAdd("clock");
+    await clickAdd("notes");
+
+    const iid = Object.keys(fm.state.getInstances())[0]!;
+    click('[data-delete-plugin="clock"]');
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("clock"));
+    await vi.waitFor(() =>
+      expect(fetchImpl).toHaveBeenCalledWith(
+        "/api/plugins/clock",
+        expect.objectContaining({ method: "DELETE" }),
+      ),
+    );
+    // Both clock tiles are gone; the notes tile and its record stay.
+    await vi.waitFor(() => expect(document.querySelectorAll("#vibe-canvas iframe")).toHaveLength(1));
+    expect(fm.state.getInstances()[iid]).toBeUndefined();
+    expect(fm.state.getInstances()[Object.keys(fm.state.getInstances())[0]!]).toMatchObject({
+      pluginId: "notes",
+    });
+    // The catalog row disappears after the refresh.
+    await vi.waitFor(() => expect(document.querySelector('[data-plugin="clock"]')).toBeNull());
+    expect(statusText()).toContain("удалён");
+  });
+
+  it("declining the confirm leaves everything in place", async () => {
+    const fetchImpl = stubFetch(fixture({ versions: [CLOCK] }));
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    vi.stubGlobal("fetch", fetchImpl);
+    const fm = boot();
+    await clickAdd("clock");
+
+    click('[data-delete-plugin="clock"]');
+
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(fetchImpl).not.toHaveBeenCalledWith(
+      "/api/plugins/clock",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+    expect(document.querySelectorAll("#vibe-canvas iframe")).toHaveLength(1);
+    expect(document.querySelector('[data-plugin="clock"]')).not.toBeNull();
   });
 
   it("shows a status in the header when the initial shell refresh fails", async () => {

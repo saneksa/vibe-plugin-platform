@@ -113,6 +113,22 @@ export class HostState {
     this.persist();
   }
 
+  /**
+   * Removes any instance — a widget (its BSP leaf goes with it) or an app
+   * (clearing the current-app pointer when it points here). The catalog
+   * uninstall uses this to take leftover frames off the canvas.
+   */
+  removeInstance(iid: string): void {
+    const record = this.instances[iid];
+    if (record === undefined) return;
+    if (record.kind === "widget" && this.layout !== null) {
+      this.layout = remove(this.layout, iid);
+    }
+    if (this.currentAppIid === iid) this.currentAppIid = null;
+    delete this.instances[iid];
+    this.persist();
+  }
+
   resize(path: string, ratio: number): void {
     if (this.layout === null) return;
     this.layout = resizeTree(this.layout, path, ratio);

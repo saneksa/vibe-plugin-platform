@@ -245,6 +245,12 @@ button, input { font-family: inherit; }
   gap: 4px;
 }
 
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .dev-origin {
   overflow: hidden;
   font-family: var(--font-mono);

@@ -147,6 +147,33 @@ afterEach(async () => {
 });
 
 describe("createServer", () => {
+  it("DELETE /api/plugins/:id uninstalls every version and the unpacked files", async () => {
+    const ctx = await setup();
+    ctx.registry.add(dto(ID, "1.0.0"));
+    ctx.registry.add(dto(ID, "2.0.0"));
+    ctx.registry.save();
+
+    const res = await call(ctx.portHost, "DELETE", `/api/plugins/${ID}`);
+
+    expect(res.status).toBe(200);
+    expect(json(res)).toMatchObject({ ok: true });
+    const snapshot = await getJSON(ctx.portHost, "/api/plugins");
+    expect(snapshot.versions).toEqual([]);
+    expect(snapshot.activeVersion).toEqual({});
+    expect(snapshot.activeVersion).toEqual({});
+    // The unpacked archive members are gone from disk.
+    expect(() => ctx.registry.activeVersion(ID)).toThrow();
+  });
+
+  it("DELETE /api/plugins/:id answers 404 for an unknown plugin", async () => {
+    const ctx = await setup();
+
+    const res = await call(ctx.portHost, "DELETE", "/api/plugins/nope");
+
+    expect(res.status).toBe(404);
+    expect(json(res)).toMatchObject({ code: "PLUGIN_NOT_FOUND" });
+  });
+
   it("PUT /active switches the version and GET /api/plugins reports it", async () => {
     const ctx = await setup();
     ctx.registry.add(dto(ID, "1.0.0"));

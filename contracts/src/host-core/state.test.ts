@@ -248,6 +248,26 @@ describe("HostState registry and layout ownership", () => {
     expect(findLeaf(new HostState(store).getLayout(), widget.iid)).not.toBeNull();
   });
 
+  it("removeInstance drops widgets with their leaf and apps with their pointer", () => {
+    const st = new HostState(store);
+    const widget = st.addWidget("clock", "1.2.0");
+    const app = st.openApp("notes", "1.0.0", "/list");
+
+    // The app is current; removing it must clear the pointer too.
+    expect(st.getInstances()[app.iid]).toBeDefined();
+    st.removeInstance(app.iid);
+    expect(st.getInstances()[app.iid]).toBeUndefined();
+    expect(findLeaf(st.getLayout(), app.iid)).toBeNull();
+
+    // Removing the widget takes its BSP leaf with it.
+    st.removeInstance(widget.iid);
+    expect(st.getInstances()[widget.iid]).toBeUndefined();
+    expect(st.getLayout()).toBeNull();
+
+    // Unknown iids are a no-op.
+    expect(() => st.removeInstance("nope")).not.toThrow();
+  });
+
   it("never touches localStorage directly", () => {
     vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new Error("direct localStorage access");

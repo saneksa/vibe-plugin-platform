@@ -21,6 +21,8 @@ export interface ShellDeps {
   onThemeToggle?(theme: Theme): void;
   onUpgrade(pluginId: string, version: string): void;
   onRollback(pluginId: string, version: string): void;
+  /** Uninstalls the plugin (all versions) after the row's trash is confirmed. */
+  onDeletePlugin(pluginId: string): void;
   onCloseApp(): void;
   /** Widgets of this plugin currently on the canvas. */
   instanceCount?(pluginId: string): number;
@@ -398,7 +400,7 @@ export class Shell {
     }
     const el = target?.closest<HTMLElement>("button");
     if (el === null || el === undefined || !this.appRoot.contains(el)) return;
-    const { addWidget, quickAdd, launch, upgrade, rollback, version, themeToggle, closeApp, catalogToggle, pickZip, devRemove } =
+    const { addWidget, quickAdd, launch, upgrade, rollback, version, themeToggle, closeApp, catalogToggle, pickZip, devRemove, deletePlugin } =
       el.dataset;
     if (addWidget !== undefined) this.deps.onAddWidget(addWidget);
     else if (quickAdd !== undefined) this.deps.onAddWidget(quickAdd);
@@ -413,6 +415,7 @@ export class Shell {
       removeDevPlugin(this.deps.dev.list(), devRemove);
       this.paint();
     }
+    else if (deletePlugin !== undefined) this.deps.onDeletePlugin(deletePlugin);
   };
 
   /** Opens the file picker of the one hidden `[data-upload]` input. */
@@ -465,7 +468,11 @@ export class Shell {
     }
     // An installed plugin running from a dev origin gets a badge on its row.
     for (const row of this.root.querySelectorAll<HTMLElement>(".plugin[data-plugin]")) {
-      row.dataset.dev = entries.some((entry) => entry.id === row.dataset.plugin) ? "" : undefined;
+      if (entries.some((entry) => entry.id === row.dataset.plugin)) {
+        row.setAttribute("data-dev", "");
+      } else {
+        row.removeAttribute("data-dev");
+      }
     }
   }
 
@@ -555,19 +562,27 @@ export class Shell {
     info.append(name, meta);
     row.append(symbol, info);
 
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
     if (entry.kind === "widget") {
       const add = button({ addWidget: entry.id }, "btn btn-sm btn-accent");
       add.innerHTML = icon("plus");
       add.setAttribute("aria-label", `Добавить «${entry.title}» на холст`);
       add.title = "Добавить на холст";
-      row.append(add);
+      actions.append(add);
     } else {
       const launch = button({ launch: entry.id }, "btn btn-sm");
       launch.innerHTML = icon("play");
       launch.setAttribute("aria-label", `Открыть «${entry.title}» на весь экран`);
       launch.title = "Открыть на весь экран";
-      row.append(launch);
+      actions.append(launch);
     }
+    const trash = button({ deletePlugin: entry.id }, "btn btn-sm btn-ghost delete-plugin");
+    trash.innerHTML = icon("trash", 14);
+    trash.setAttribute("aria-label", `Удалить плагин «${entry.title}» и все его версии`);
+    trash.title = "Удалить плагин (все версии)";
+    actions.append(trash);
+    row.append(actions);
 
     if (entry.newer !== null || entry.older !== null) {
       const actions = document.createElement("div");

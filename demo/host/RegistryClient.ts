@@ -101,6 +101,10 @@ export class RegistryClient implements RegistryTransport {
     await this.putActive(id, version);
   }
 
+  async deletePlugin(id: string): Promise<void> {
+    await this.request(`/api/plugins/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
   async upload(file: File): Promise<UploadResult> {
     const form = new FormData();
     form.append("file", file, file.name);

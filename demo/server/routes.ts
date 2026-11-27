@@ -10,6 +10,7 @@ import express, {
   type Response,
   type Router,
 } from "express";
+import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { getMeta, getPolicy } from "@vibe/plugin-contracts/protocol";
 import type { Registry } from "./registry.js";
@@ -121,6 +122,20 @@ export function createApiRouter(opts: { registry: Registry; storageDir: string }
       res.json(descriptor);
     }),
   );
+
+  router.delete("/api/plugins/:id", (req, res) => {
+    const id = req.params.id!;
+    // Uninstall every version: registry first (unknown id → 404 before any
+    // filesystem change), then the unpacked directory.
+    let removed: ReturnType<Registry["delete"]>;
+    try {
+      removed = registry.delete(id);
+    } catch {
+      throw new HttpError(404, "PLUGIN_NOT_FOUND", `plugin "${id}" is not installed`);
+    }
+    rmSync(join(storageDir, "plugins", id), { recursive: true, force: true });
+    res.json({ ok: true, removed });
+  });
 
   router.get("/api/meta", (_req, res) => {
     // getMeta() derives `sunset` from the FIRST deprecated entry only — the

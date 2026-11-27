@@ -507,6 +507,41 @@ function watchDrops(): void {
   });
 }
 
+/**
+ * Catalog uninstall: removes the plugin (all versions) from the backend,
+ * takes its instances off the canvas and refreshes the catalog. Backend first
+ * — if it refuses, nothing on the page changes.
+ */
+function deletePluginFromCatalog(id: string): void {
+  const rt = runtime;
+  if (rt === null) return;
+  if (
+    !window.confirm(
+      `Удалить плагин «${id}» и все его версии? Экземпляры уйдут с холста, данные host.storage останутся.`,
+    )
+  ) {
+    return;
+  }
+  void (async () => {
+    await rt.registry.deletePlugin(id);
+    const instances = rt.fm.state.getInstances();
+    for (const [iid, record] of Object.entries(instances)) {
+      if (record.pluginId !== id) continue;
+      if (rt.appIid === iid) {
+        closeApp(); // unmount + state + canvas visuals + history, all in one
+        continue;
+      }
+      rt.fm.unmount(iid);
+      rt.fm.state.removeInstance(iid);
+    }
+    renderCanvas();
+    await rt.shell.refresh();
+    rt.shell.showStatus(`Плагин «${id}» удалён. Переустановите архив, чтобы вернуть его в каталог.`, "info");
+  })().catch((error: unknown) => {
+    rt.shell.showStatus(`Не удалось удалить плагин: ${errorMessage(error)}`, "error");
+  });
+}
+
 export function boot(opts: BootOptions = {}): FrameManager {
   applyStoredTheme();
   // The widget dev loop lives in localStorage; the same array reference is
@@ -635,6 +670,7 @@ export function boot(opts: BootOptions = {}): FrameManager {
       onThemeToggle: (theme) => fm.publish("theme.changed", { mode: theme }),
       onUpgrade: switchVersion,
       onRollback: switchVersion,
+      onDeletePlugin: deletePluginFromCatalog,
       onCloseApp: closeApp,
       instanceCount: (pluginId) =>
         Object.values(fm.state.getInstances()).filter(

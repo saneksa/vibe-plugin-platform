@@ -93,6 +93,25 @@ export class Registry {
     this.save();
   }
 
+  /**
+   * Uninstalls every version of a plugin. Returns the removed descriptors;
+   * the caller decides what to do with the unpacked files.
+   */
+  delete(id: string): PluginDescriptorDTO[] {
+    const removed: PluginDescriptorDTO[] = [];
+    for (const [mapKey, dto] of [...this.versions]) {
+      if (dto.id !== id) continue;
+      removed.push(clone(dto));
+      this.versions.delete(mapKey);
+    }
+    if (removed.length === 0) {
+      throw new Error(`cannot delete "${id}": plugin is not installed`);
+    }
+    this.active.delete(id);
+    this.save();
+    return removed;
+  }
+
   save(): void {
     const snapshot: RegistrySnapshot = {
       versions: this.list(),
