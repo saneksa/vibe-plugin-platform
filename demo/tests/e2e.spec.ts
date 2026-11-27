@@ -16,6 +16,7 @@ const CLOCK_V1 = archive("clock-ts-1.2.0/dist/clock-1.2.0.zip");
 const CLOCK_V2 = archive("clock-ts/dist/clock-2.0.0.zip");
 const NOTES = archive("notes-app/dist/notes-app-1.0.0.zip");
 const HOSTILE = archive("hostile-widget/dist/hostile-widget-1.0.0.zip");
+const TASKS = archive("tasks-app/dist/tasks-app-1.0.0.zip");
 
 function widgetFrame(page: Page, iid: string): FrameLocator {
   return page.frameLocator(`iframe[src*="iid=${iid}"]`);
@@ -197,4 +198,73 @@ test("§16 full scenario: upload → two widgets → upgrade → rollback → re
   for (const iid of iids) {
     await expect(widgetFrame(page, iid).locator("html")).toHaveAttribute("data-theme", "light");
   }
+});
+
+test("tasks-app: react-router flows on the host's virtual URL space", async ({ page }) => {
+  test.setTimeout(120_000);
+  const tasks = page.frameLocator("#app-frame iframe");
+
+  // Upload and launch from the catalog.
+  await page.goto("/");
+  await expect(page.locator(".brand")).toBeVisible();
+  await page.locator("input[data-upload]").setInputFiles(TASKS);
+  await expect(page.locator("[data-upload-status]")).toHaveText("загружено");
+  await expect(page.locator('[data-launch="tasks-app"]')).toBeVisible();
+  await page.locator('[data-launch="tasks-app"]').click();
+  await expect(page.locator("#app-frame iframe")).toBeVisible();
+  await expect(tasks.getByRole("heading", { name: "Overview" })).toBeVisible();
+  await expect(tasks.locator(".card-value").first()).toHaveText("6");
+
+  // Sidebar navigation mirrors into the host URL and the top-bar chip.
+  // The chip renders before the navigate envelope round-trips, so the URL
+  // gets an explicit wait.
+  await tasks.getByRole("link", { name: "Tasks", exact: true }).click();
+  await expect(tasks.locator(".app-route")).toHaveText("/tasks");
+  await page.waitForURL(/\/tasks$/);
+  expect(page.url()).toContain("/tasks");
+  await expect(page.locator('[data-app-route]')).toHaveText("/tasks");
+
+  // Filters are routes: /tasks/open narrows the list.
+  await tasks.getByRole("link", { name: "Open" }).click();
+  await expect(tasks.locator(".app-route")).toHaveText("/tasks/open");
+  await page.waitForURL(/\/tasks\/open$/);
+  await expect(tasks.locator(".task-row")).toHaveCount(4);
+
+  // Task detail with param matching; toggling persists through host.storage.
+  await tasks.getByRole("link", { name: "Write the hero copy" }).click();
+  await expect(tasks.getByRole("heading", { name: "Write the hero copy" })).toBeVisible();
+  await page.waitForURL(/\/task\/t2$/);
+  await expect(tasks.locator(".meta")).toContainText("Open");
+  await tasks.getByRole("button", { name: "Toggle status" }).click();
+  await expect(tasks.locator(".meta")).toContainText("Done");
+
+  // App-driven replace to /tasks removes the task from the store.
+  await tasks.getByRole("button", { name: "Delete task" }).click();
+  await expect(tasks.locator(".app-route")).toHaveText("/tasks");
+  // The replace round-trips through the host; let it settle before history moves.
+  await page.waitForURL(/\/tasks$/);
+  await expect(tasks.locator(".task-row")).toHaveCount(5);
+
+  // The plugin's replace lands in browser history: back is the previous
+  // entry (/tasks/open), forward is the replaced one (/tasks).
+  await page.goBack();
+  await expect(tasks.locator(".app-route")).toHaveText("/tasks/open");
+  await page.goForward();
+  await expect(tasks.locator(".app-route")).toHaveText("/tasks");
+
+  // Unknown paths reach the app too (catch-all in the SDK route table): 404 view.
+  const iid = new URL(await page.locator("#app-frame iframe").getAttribute("src") ?? "http://x/?iid=")
+    .searchParams.get("iid");
+  expect(iid).toBeTruthy();
+  await page.goto(`/app/${iid}/nope/deep`);
+  await expect(tasks.getByRole("heading", { name: "404" })).toBeVisible();
+  await expect(tasks.locator(".app-route")).toHaveText("/nope/deep");
+
+  // Reload on a deep route restores the app at the same route.
+  await page.goto(`/app/${iid}/tasks/done`);
+  await expect(tasks.getByRole("heading", { name: "Tasks" })).toBeVisible();
+  await expect(tasks.locator(".app-route")).toHaveText("/tasks/done");
+  await page.waitForURL(/\/tasks\/done$/);
+  // t1 and t4 are the seeded done tasks; the toggled t2 was deleted above.
+  await expect(tasks.locator(".task-row")).toHaveCount(2);
 });

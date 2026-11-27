@@ -96,21 +96,30 @@ function postAll(state: "suspend" | "resume", exceptIid: string | null): void {
 }
 
 /**
- * Shows the loading skeleton of a freshly mounted frame. `FrameManager` can
- * rebuild frames in place, so the host re-runs this after every rebuild.
+ * Shows the loading state of a freshly mounted frame. First mounts get the
+ * skeleton; in-place rebuilds (upgrade/rollback recreate the iframe) only dim
+ * the content — a skeleton there reads as the tile "shrinking" for a moment.
+ * `FrameManager` can rebuild frames in place, so the host re-runs this after
+ * every rebuild.
  */
-function decorateFrame(iid: string, frame: HTMLIFrameElement): void {
+function decorateFrame(
+  iid: string,
+  frame: HTMLIFrameElement,
+  opts: { rebuild?: boolean } = {},
+): void {
   const rt = runtime;
   const container = frame.parentElement;
   if (rt === null || container === null) return;
   const pluginId = rt.fm.state.getInstances()[iid]?.pluginId;
   const meta = pluginId === undefined ? undefined : rt.shell.describe(pluginId);
   frame.title = meta === undefined ? "Плагин" : `${meta.title} — плагин`;
-  container.dataset.loading = "";
+  container.setAttribute(opts.rebuild ? "data-rebuilding" : "data-loading", "");
   frame.addEventListener(
     "load",
     () => {
-      if (frame.isConnected) delete container.dataset.loading;
+      if (!frame.isConnected) return;
+      container.removeAttribute("data-loading");
+      container.removeAttribute("data-rebuilding");
     },
     { once: true },
   );
@@ -127,7 +136,7 @@ function syncFramesFromDom(): void {
     if (iid === null) continue;
     rt.frames.set(iid, frame);
     // Only rebuilt frames are new DOM nodes; the others have already loaded.
-    if (known.get(iid) !== frame) decorateFrame(iid, frame);
+    if (known.get(iid) !== frame) decorateFrame(iid, frame, { rebuild: true });
   }
   refreshTileHeaders();
 }
@@ -167,7 +176,8 @@ function showFrameError(iid: string, message: string): void {
   if (rt === null) return;
   const container = rt.appIid === iid ? document.getElementById(APP_FRAME_ID) : frameSlot(iid);
   if (container === null) return;
-  delete container.dataset.loading;
+  container.removeAttribute("data-loading");
+  container.removeAttribute("data-rebuilding");
   container.querySelector(".frame-error")?.remove();
   const card = document.createElement("div");
   card.className = "frame-error";

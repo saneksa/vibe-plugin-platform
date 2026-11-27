@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "id": "tasks-app",
+  "kind": "app",
+  "version": "1.0.0",
+  "hostApi": "^2",
+  "sdk": "2.0.0",
+  "title": "Tasks",
+  "icon": "tasks",
+  "entry": "index.html",
+  "capabilities": [
+    "storage.read",
+    "storage.write",
+    "navigate",
+    "notify",
+    "theme.read",
+    "events.read"
+  ],
+  "routes": [
+    "/",
+    "/tasks",
+    "/tasks/:filter",
+    "/task/:taskId",
+    "/projects",
+    "/projects/:projectId",
+    "/about"
+  ],
+  "defaultSize": { "w": 960, "h": 640 },
+  "minSize": { "w": 400, "h": 300 }
+}

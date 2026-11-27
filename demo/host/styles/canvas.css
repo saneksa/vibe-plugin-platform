@@ -167,8 +167,17 @@
   background: var(--panel);
 }
 
+/* The new frame fades in; while it loads the tile keeps its size and plain
+   surface. First mounts also show the skeleton; in-place rebuilds (upgrade/
+   rollback) only dim — a skeleton there reads as the widget "shrinking". */
+.frame-slot > iframe {
+  transition: opacity 140ms ease-out;
+}
+
 .frame-slot[data-loading] .widget-loading { display: flex; }
-.frame-slot[data-loading] > iframe { visibility: hidden; }
+
+.frame-slot[data-loading] > iframe,
+.frame-slot[data-rebuilding] > iframe { opacity: 0; }
 
 .skeleton {
   height: 12px;
@@ -280,9 +289,11 @@
   height: 100%;
   border: 0;
   background: var(--panel);
+  transition: opacity 140ms ease-out;
 }
 
-.app-frame[data-loading] > iframe { visibility: hidden; }
+.app-frame[data-loading] > iframe,
+.app-frame[data-rebuilding] > iframe { opacity: 0; }
 
 .app-frame[data-loading]::after {
   content: "";
@@ -297,4 +308,7 @@
 @media (prefers-reduced-motion: reduce) {
   .skeleton,
   .app-frame[data-loading]::after { animation: none; }
+
+  .frame-slot > iframe,
+  .app-frame > iframe { transition: none; }
 }

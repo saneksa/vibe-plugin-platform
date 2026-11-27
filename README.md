@@ -159,7 +159,7 @@ npx vibe-plugin check dist/my-widget-1.0.0.zip   # → ok
 #   4. «Загрузить zip» в каталоге хоста → ＋ у плагина → плитка на холсте
 ```
 
-Манифест, права (`capabilities`) и `kind: "app"` описаны в [demo/README.md](demo/README.md). Готовые примеры: ванильный TS, React, Vue, приложение с роутингом и «вредный» виджет.
+Манифест, права (`capabilities`) и `kind: "app"` описаны в [demo/README.md](demo/README.md). Готовые примеры: ванильный TS, React (TSX), Vue (SFC), приложение с роутингом на react-router и «вредный» виджет.
 
 ---
 

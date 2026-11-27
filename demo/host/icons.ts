@@ -18,6 +18,7 @@ const PATHS = {
   play: '<path d="M7 4.5v15l12-7.5z"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   note: '<path d="M15 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M15 3v5h5M9 13h6M9 17h6"/>',
+  tasks: '<path d="m3 7 2 2 3.5-3.5"/><path d="m3 17 2 2 3.5-3.5"/><path d="M12 8h9M12 18h9"/>',
   warning: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
   puzzle: '<path d="M10 3.5a2 2 0 1 1 4 0V5h3a2 2 0 0 1 2 2v3h-1.5a2 2 0 1 0 0 4H19v3a2 2 0 0 1-2 2h-3v-1.5a2 2 0 1 0-4 0V19H7a2 2 0 0 1-2-2v-3h1.5a2 2 0 1 0 0-4H5V7a2 2 0 0 1 2-2h3z"/>',
   box: '<path d="M21 8v8a2 2 0 0 1-1 1.7l-7 4a2 2 0 0 1-2 0l-7-4A2 2 0 0 1 3 16V8a2 2 0 0 1 1-1.7l7-4a2 2 0 0 1 2 0l7 4A2 2 0 0 1 21 8z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/>',
@@ -43,6 +44,7 @@ export function pluginGlyph(name: string | undefined): IconName {
   const value = (name ?? "").toLowerCase();
   if (value.includes("clock")) return "clock";
   if (value.includes("note")) return "note";
+  if (value.includes("task")) return "tasks";
   if (value.includes("warn")) return "warning";
   if (value.includes("puzzle")) return "puzzle";
   return "box";
