@@ -40,12 +40,13 @@ export interface DemoAdapterConfig {
   /** Sink for `notify.show`; notifications are dropped when it is not set. */
   onNotify?: (notification: { level: string; message: string }, ctx: RpcContext) => void;
   /**
-   * Widget dev loop: frames of this plugin id mount at a `vite dev` origin
+   * Widget dev loop: frames of these plugin ids mount at a `vite dev` origin
    * (e.g. http://localhost:5173) instead of the installed archive, so edits
    * hot-reload inside the frame. A different origin keeps the isolation
-   * guarantees intact — only this plugin's expectedOrigin changes.
+   * guarantees intact — only these plugins' expectedOrigin changes. The host
+   * passes its live array; `catalog` UI updates apply without a reboot.
    */
-  devPlugin?: { id: string; origin: string };
+  devPlugins?: Array<{ id: string; origin: string }>;
 }
 
 const CONTEXT = {
@@ -140,15 +141,19 @@ export class DemoHostAdapter implements HostAdapter {
   }
 
   private isDev(plugin: { id: string; version: string }): boolean {
-    return this.cfg.devPlugin !== undefined && plugin.id === this.cfg.devPlugin.id;
+    return this.cfg.devPlugins?.some((dev) => dev.id === plugin.id) ?? false;
   }
 
   getPluginOrigin(plugin: { id: string; version: string }): string {
-    return this.isDev(plugin) ? this.cfg.devPlugin!.origin : this.cfg.pluginOrigin;
+    return this.isDev(plugin)
+      ? this.cfg.devPlugins!.find((dev) => dev.id === plugin.id)!.origin
+      : this.cfg.pluginOrigin;
   }
 
   getPluginFrameBase(plugin: { id: string; version: string }): string {
-    if (this.isDev(plugin)) return `${this.cfg.devPlugin!.origin}/index.html`;
+    if (this.isDev(plugin)) {
+      return `${this.cfg.devPlugins!.find((dev) => dev.id === plugin.id)!.origin}/index.html`;
+    }
     return this.cfg.frameBase(plugin);
   }
 

@@ -19,6 +19,12 @@ import {
   type TileMeta,
 } from "./Canvas.js";
 import { DemoHostAdapter } from "./DemoHostAdapter.js";
+import {
+  addDevPlugin,
+  loadDevPlugins,
+  removeDevPlugin,
+  type DevPlugin,
+} from "./devPlugins.js";
 import { icon, pluginGlyph } from "./icons.js";
 import { RegistryClient } from "./RegistryClient.js";
 import { errorMessage, Shell } from "./Shell.js";
@@ -460,16 +466,9 @@ function watchDrops(): void {
 
 export function boot(opts: BootOptions = {}): FrameManager {
   applyStoredTheme();
-  const query = new URLSearchParams(window.location.search);
-  const devId = query.get("devPlugin");
-  const devOriginRaw = query.get("devOrigin");
-  const devPlugin =
-    devId !== null &&
-    devId !== "" &&
-    devOriginRaw !== null &&
-    /^https?:\/\//.test(devOriginRaw)
-      ? { id: devId, origin: devOriginRaw.replace(/\/+$/, "") }
-      : undefined;
+  // The widget dev loop lives in localStorage; the same array reference is
+  // shared with the adapter, so catalog edits apply to future mounts.
+  const devList: DevPlugin[] = loadDevPlugins();
   const root = appContainer(opts.root);
   root.replaceChildren();
 
@@ -509,7 +508,7 @@ export function boot(opts: BootOptions = {}): FrameManager {
     // Plugins see the theme the chrome is painted in.
     getTheme: currentTheme,
     onNotify: (notification) => rt.toasts.push(notification.message, notification.level),
-    devPlugin,
+    devPlugins: devList,
   });
   const fm = createFrameManager({ adapter, onFrameError: showFrameError });
   const rt: Runtime = {
@@ -551,6 +550,11 @@ export function boot(opts: BootOptions = {}): FrameManager {
     {
       registry,
       toasts: rt.toasts,
+      dev: {
+        list: () => devList,
+        add: (id, origin) => addDevPlugin(devList, id, origin),
+        remove: (id) => removeDevPlugin(devList, id),
+      },
 
       onAddWidget: (pluginId) => {
         void (async () => {
@@ -597,10 +601,13 @@ export function boot(opts: BootOptions = {}): FrameManager {
     shellRoot,
     bar,
   );
-  rt.shell.setDev(devPlugin);
+  rt.shell.setDev(devList);
   rt.launcher = new AppLauncher(
     {
       registry,
+      // A dev plugin may not be installed at all: it still opens, versioned
+      // "dev" (the frame URL ignores the version; the backend is not involved).
+      resolveDev: (pluginId) => (devList.some((dev) => dev.id === pluginId) ? "dev" : undefined),
       createApp: (pluginId, version, route) => {
         const record = fm.createInstance(
           {

@@ -203,6 +203,55 @@ button, input { font-family: inherit; }
   place-items: center;
 }
 
+/* ---------- Widget dev loop ("Разработка" section) ---------- */
+
+.dev-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 var(--sp-2) var(--sp-3);
+}
+
+.dev-form input {
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-s);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.dev-form input::placeholder {
+  color: var(--text-faint);
+}
+
+.dev-form input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.dev-actions {
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.dev-origin {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* An installed plugin running from a dev origin. */
+.plugin[data-dev] {
+  border-color: var(--accent-line);
+}
+
 /* ---------- Catalog (#shell) ---------- */
 
 #shell {

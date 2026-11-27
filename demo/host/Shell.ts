@@ -5,6 +5,7 @@
  */
 
 import type { PluginDescriptorDTO } from "@vibe/plugin-contracts/host-core";
+import { addDevPlugin, removeDevPlugin, type DevPlugin } from "./devPlugins.js";
 import { icon, pluginGlyph, type IconName } from "./icons.js";
 import type { RegistryClient, UploadResult } from "./RegistryClient.js";
 import type { StatusLevel, Toasts } from "./Toasts.js";
@@ -23,6 +24,15 @@ export interface ShellDeps {
   onCloseApp(): void;
   /** Widgets of this plugin currently on the canvas. */
   instanceCount?(pluginId: string): number;
+  /**
+   * Widget dev loop: which ids mount frames from a vite dev origin, backed by
+   * localStorage. Shell renders the "Разработка" section and its add-form.
+   */
+  dev: {
+    list(): DevPlugin[];
+    add(id: string, origin: string): { ok: boolean; error?: string };
+    remove(id: string): void;
+  };
 }
 
 /** The app shown in the full-screen stage. */
@@ -160,7 +170,25 @@ export class Shell {
     // (its empty state offers quick-add buttons).
     this.appRoot.addEventListener("click", this.onClick);
     this.root.addEventListener("change", this.onChange);
+    this.root.addEventListener("submit", this.onSubmit);
   }
+
+  /** Handles the "Разработка" add-form. */
+  private onSubmit = (event: SubmitEvent): void => {
+    const form = event.target;
+    if (!(form instanceof HTMLFormElement) || form.dataset.devForm === undefined) return;
+    event.preventDefault();
+    const idInput = form.querySelector<HTMLInputElement>("[data-dev-id]")!;
+    const originInput = form.querySelector<HTMLInputElement>("[data-dev-origin]")!;
+    const result = addDevPlugin(this.deps.dev.list(), idInput.value, originInput.value);
+    if (!result.ok) {
+      this.showStatus(result.error ?? "Не удалось включить разработку", "error");
+      return;
+    }
+    idInput.value = "";
+    originInput.value = "";
+    this.paint();
+  };
 
   /** The one status surface of the host, shared by upload and every UI flow. */
   showStatus(message: string, level: StatusLevel = "info"): void {
@@ -220,22 +248,26 @@ export class Shell {
     chip.hidden = count === 0;
   }
 
-  /** Marks the widget dev loop in the top bar; clicking the chip turns it off. */
-  setDev(dev: { id: string; origin: string } | undefined): void {
-    this.bar.querySelector("[data-dev-chip]")?.remove();
-    if (dev === undefined) return;
-    const title = this.bar.querySelector<HTMLElement>(".bar-title");
-    if (title === null) return;
-    const chip = document.createElement("button");
-    chip.type = "button";
-    chip.className = "chip chip-mono dev-chip";
-    chip.dataset.devChip = "";
-    chip.title = `Разработка «${dev.id}»: фреймы грузятся с ${dev.origin}. Нажмите, чтобы вернуться к установленным версиям.`;
-    chip.textContent = `dev: ${dev.id}`;
-    chip.addEventListener("click", () => {
-      window.location.assign(window.location.pathname);
-    });
-    title.appendChild(chip);
+  /** Marks the dev loop in the top bar; the chip lists every dev plugin id. */
+  setDev(dev: DevPlugin[] | undefined): void {
+    const chip = this.bar.querySelector<HTMLElement>("[data-dev-chip]");
+    const ids = dev?.map((entry) => entry.id) ?? [];
+    if (ids.length === 0) {
+      chip?.remove();
+      return;
+    }
+    const label = `dev: ${ids.join(", ")}`;
+    if (chip === null) {
+      const title = this.bar.querySelector<HTMLElement>(".bar-title");
+      if (title === null) return;
+      const created = document.createElement("span");
+      created.className = "chip chip-mono dev-chip";
+      created.dataset.devChip = "";
+      title.appendChild(created);
+    }
+    const mark = this.bar.querySelector<HTMLElement>("[data-dev-chip]")!;
+    mark.textContent = label;
+    mark.title = `Разработка: фреймы ${ids.join(", ")} грузятся с dev-серверов (см. «Разработка» в каталоге)`;
   }
 
   /** Swaps the top bar between the canvas and the app view. */
@@ -273,6 +305,15 @@ export class Shell {
     this.root.innerHTML = `
       <div class="brand">${icon("logo", 20)}<span class="brand-name">VIBE</span><span class="brand-sub">Plugin Platform</span></div>
       <nav class="catalog-body" aria-label="Установленные плагины">
+        <section class="catalog-section" data-section="dev">
+          <h2 class="catalog-title">Разработка <span class="catalog-count" data-count="dev"></span></h2>
+          <form class="dev-form" data-dev-form>
+            <input type="text" data-dev-id placeholder="id плагина" aria-label="id плагина">
+            <input type="text" data-dev-origin placeholder="http://localhost:5173" aria-label="dev-origin">
+            <button type="submit" class="btn btn-sm dev-chip" aria-label="Включить разработку" title="Фреймы этого плагина будут грузиться с dev-сервера">＋ dev</button>
+          </form>
+          <ul class="plugin-list" data-dev-list></ul>
+        </section>
         <section class="catalog-section" data-section="widgets" hidden>
           <h2 class="catalog-title">Виджеты <span class="catalog-count" data-count="widgets"></span></h2>
           <ul class="plugin-list" data-widgets></ul>
@@ -297,6 +338,7 @@ export class Shell {
     `;
     this.root.id = "shell";
     this.root.className = "catalog";
+    this.root.addEventListener("submit", this.onSubmit);
   }
 
   private renderBar(): void {
@@ -355,7 +397,7 @@ export class Shell {
     }
     const el = target?.closest<HTMLElement>("button");
     if (el === null || el === undefined || !this.appRoot.contains(el)) return;
-    const { addWidget, quickAdd, launch, upgrade, rollback, version, themeToggle, closeApp, catalogToggle, pickZip } =
+    const { addWidget, quickAdd, launch, upgrade, rollback, version, themeToggle, closeApp, catalogToggle, pickZip, devRemove } =
       el.dataset;
     if (addWidget !== undefined) this.deps.onAddWidget(addWidget);
     else if (quickAdd !== undefined) this.deps.onAddWidget(quickAdd);
@@ -366,6 +408,10 @@ export class Shell {
     else if (themeToggle !== undefined) this.onThemeToggle();
     else if (catalogToggle !== undefined) this.appRoot.classList.toggle("catalog-open");
     else if (pickZip !== undefined) this.pickZip();
+    else if (devRemove !== undefined) {
+      removeDevPlugin(this.deps.dev.list(), devRemove);
+      this.paint();
+    }
   };
 
   /** Opens the file picker of the one hidden `[data-upload]` input. */
@@ -391,8 +437,63 @@ export class Shell {
     this.catalog = groupPlugins(this.versions, this.active);
     this.renderSection("widgets", this.catalog.filter((entry) => entry.kind === "widget"));
     this.renderSection("apps", this.catalog.filter((entry) => entry.kind === "app"));
+    this.renderDev();
     const empty = this.root.querySelector<HTMLElement>("[data-catalog-empty]");
     if (empty !== null) empty.hidden = this.catalog.length > 0;
+    this.setDev(this.deps.dev.list());
+  }
+
+  /** The "Разработка" section: dev entries plus the installed ids they shadow. */
+  private renderDev(): void {
+    const list = this.root.querySelector<HTMLElement>("[data-dev-list]");
+    const count = this.root.querySelector<HTMLElement>('[data-count="dev"]');
+    if (list === null || count === null) return;
+    const entries = this.deps.dev.list();
+    count.textContent = String(entries.length);
+    list.replaceChildren(...entries.map((entry) => this.devRow(entry)));
+    // An installed plugin running from a dev origin gets a badge on its row.
+    for (const row of this.root.querySelectorAll<HTMLElement>(".plugin[data-plugin]")) {
+      row.dataset.dev = entries.some((entry) => entry.id === row.dataset.plugin) ? "" : undefined;
+    }
+  }
+
+  private devRow(entry: DevPlugin): HTMLLIElement {
+    const row = document.createElement("li");
+    row.className = "plugin";
+    row.dataset.devPlugin = entry.id;
+    row.dataset.dev = "";
+
+    const symbol = document.createElement("span");
+    symbol.className = "plugin-icon";
+    symbol.setAttribute("aria-hidden", "true");
+    symbol.innerHTML = icon("puzzle");
+
+    const info = document.createElement("div");
+    info.className = "plugin-info";
+    info.append(text("plugin-name", entry.id));
+    const meta = document.createElement("div");
+    meta.className = "plugin-meta";
+    meta.append(text("plugin-note dev-origin", entry.origin));
+    info.append(meta);
+    row.append(symbol, info);
+
+    const actions = document.createElement("div");
+    actions.className = "dev-actions";
+    const add = button({ addWidget: entry.id }, "btn btn-sm btn-accent");
+    add.innerHTML = icon("plus");
+    add.title = "Добавить как виджет";
+    add.setAttribute("aria-label", `Добавить «${entry.id}» как виджет`);
+    const launch = button({ launch: entry.id }, "btn btn-sm");
+    launch.innerHTML = icon("play");
+    launch.title = "Открыть как приложение";
+    launch.setAttribute("aria-label", `Открыть «${entry.id}» как приложение`);
+    const remove = button({ devRemove: entry.id }, "btn btn-sm btn-ghost dev-remove");
+    remove.innerHTML = icon("close", 14);
+    remove.title = "Выключить разработку";
+    remove.setAttribute("aria-label", `Выключить разработку для «${entry.id}»`);
+    actions.append(add, launch, remove);
+    row.append(actions);
+    return row;
   }
 
   private renderSection(name: "widgets" | "apps", entries: PluginEntry[]): void {
@@ -434,6 +535,9 @@ export class Shell {
     }
     const instances = entry.kind === "widget" ? (this.deps.instanceCount?.(entry.id) ?? 0) : 0;
     if (instances > 0) meta.append(text("plugin-note", `на холсте: ${instances}`));
+    if (this.deps.dev.list().some((dev) => dev.id === entry.id)) {
+      meta.append(text("chip chip-mono dev-chip", "dev"));
+    }
     info.append(name, meta);
     row.append(symbol, info);
 

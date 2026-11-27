@@ -123,6 +123,23 @@ describe("DemoHostAdapter", () => {
     expect(a.getPluginFrameBase(plugin)).toBe("http://localhost:4001/plugins/clock/1.2.0");
   });
 
+  it("devPlugins override origin and frame base per id", () => {
+    const { cfg } = makeConfig({
+      devPlugins: [{ id: "clock", origin: "http://localhost:5173" }],
+    });
+    const a = new DemoHostAdapter(cfg);
+
+    expect(a.getPluginOrigin({ id: "clock", version: "1.2.0" })).toBe("http://localhost:5173");
+    expect(a.getPluginFrameBase({ id: "clock", version: "1.2.0" })).toBe(
+      "http://localhost:5173/index.html",
+    );
+    // Neighbours are untouched.
+    expect(a.getPluginOrigin({ id: "notes", version: "1.0.0" })).toBe(PLUGIN_ORIGIN);
+    expect(a.getPluginFrameBase({ id: "notes", version: "1.0.0" })).toBe(
+      "http://localhost:4001/plugins/notes/1.0.0",
+    );
+  });
+
   it("grantCapabilities intersects the request with the catalogue", () => {
     const { cfg } = makeConfig();
     const a = new DemoHostAdapter(cfg);

@@ -227,7 +227,12 @@ describe("demo host", () => {
   });
 
   it("dev mode mounts that plugin's frames at the dev origin; neighbours stay on :4001", async () => {
-    window.history.replaceState(null, "", "/?devPlugin=clock&devOrigin=http://localhost:5173/");
+    // The dev loop is driven by the catalog's "Разработка" section and
+    // persisted in localStorage.
+    window.localStorage.setItem(
+      "vibe.devPlugins",
+      JSON.stringify([{ id: "clock", origin: "http://localhost:5173/" }]),
+    );
     const fm = boot();
 
     await clickAdd("clock");
@@ -241,15 +246,46 @@ describe("demo host", () => {
     const devFrame = document
       .querySelector<HTMLIFrameElement>('#vibe-canvas iframe[src*="localhost:5173"]')!
       .getAttribute("src")!;
-    expect(devFrame).toContain("/index.html?iid=");
-    // The top bar marks the dev loop (clicking the chip drops the params).
-    const chip = document.querySelector<HTMLButtonElement>("[data-dev-chip]");
-    expect(chip?.textContent).toBe("dev: clock");
-    expect(chip?.title).toContain("localhost:5173");
-    expect(fm.state.getInstances()).toBeDefined(); // still alive with the dev override
+    expect(new URL(devFrame).pathname).toBe("/index.html");
+    expect(new URL(devFrame).searchParams.get("iid")).toBeTruthy();
+    // The top bar marks the dev loop; the installed row carries a dev badge.
+    expect(document.querySelector("[data-dev-chip]")?.textContent).toBe("dev: clock");
+    expect(document.querySelector('.plugin[data-plugin="clock"][data-dev]')).not.toBeNull();
+    expect(fm.state.getInstances()).toBeDefined();
   });
 
-  it("boot mounts the shell and full-screen stage inside the #app flex container", async () => {    const fm = boot();
+  it("the catalog dev section adds and removes dev plugins (persisted)", async () => {
+    boot();
+    expect(document.querySelector('[data-section="dev"]')).not.toBeNull();
+
+    const form = document.querySelector<HTMLFormElement>("[data-dev-form]")!;
+    (form.querySelector<HTMLInputElement>("[data-dev-id]")!).value = "my-widget";
+    (form.querySelector<HTMLInputElement>("[data-dev-origin]")!).value = "http://localhost:5173";
+    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+
+    expect(document.querySelector('[data-dev-plugin="my-widget"]')).not.toBeNull();
+    // Unknown ids work too: the entry exists without any installed archive.
+    expect(document.querySelector('[data-add-widget="my-widget"]')).not.toBeNull();
+    expect(JSON.parse(window.localStorage.getItem("vibe.devPlugins") ?? "[]")).toEqual([
+      { id: "my-widget", origin: "http://localhost:5173" },
+    ]);
+
+    // A duplicate is rejected with the reason in the status area.
+    const status = document.querySelector<HTMLElement>("[data-upload-status]")!;
+    const before = status.textContent;
+    (form.querySelector<HTMLInputElement>("[data-dev-id]")!).value = "my-widget";
+    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    expect(status.textContent).not.toBe(before);
+    expect(document.querySelectorAll('[data-dev-plugin="my-widget"]')).toHaveLength(1);
+
+    // Removing the entry drops it from the section and the storage.
+    document.querySelector<HTMLButtonElement>('[data-dev-remove="my-widget"]')!.click();
+    expect(document.querySelector('[data-dev-plugin="my-widget"]')).toBeNull();
+    expect(window.localStorage.getItem("vibe.devPlugins")).toBe("[]");
+  });
+
+  it("boot mounts the shell and full-screen stage inside the #app flex container", async () => {
+    const fm = boot();
     const app = document.querySelector<HTMLElement>("#app");
     if (app === null) throw new Error("#app container missing");
 
