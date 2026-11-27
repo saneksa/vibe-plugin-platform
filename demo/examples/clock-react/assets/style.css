@@ -1,6 +1,22 @@
 /* Same look as the TypeScript and Vue clocks; only the framework differs.
    Loaded via <link> from index.html — `vite dev` serves it statically with
-   CSS HMR, and `pack` ships the assets/ directory inside the archive. */
+   CSS HMR, and `pack` ships the assets/ directory inside the archive.
+   The custom font ships with the plugin (SIL OFL 1.1); the plugin-origin
+   CSP allows it: font-src 'self'. */
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./jetbrains-mono-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./jetbrains-mono-latin-700-normal.woff2") format("woff2");
+}
 :root {
   color-scheme: dark;
   --surface: #14161c;
@@ -11,7 +27,7 @@
   --faint: #6f7684;
   --accent: #818cf8;
   --accent-soft: rgba(129, 140, 248, 0.22);
-  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 :root[data-theme="light"] {
   color-scheme: light;
@@ -80,8 +96,9 @@ body {
   background: var(--card);
 }
 .clock-time {
+  font-family: var(--mono);
   font-size: clamp(28px, min(13cqw, 18cqh), 112px);
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1.05;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
