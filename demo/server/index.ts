@@ -86,7 +86,11 @@ export async function createServer(opts: CreateServerOptions): Promise<ServerHan
   hostApp.use(apiErrorHandler);
   hostApp.use(createHostApp(hostDir, opts.vite ? [opts.vite.middlewares] : undefined, spaHtml));
 
-  const pluginApp = createPluginApp(resolve(storageDir, "plugins"));
+  const pluginApp = createPluginApp(resolve(storageDir, "plugins"), {
+    // A deployed host caches the versioned plugin paths hard; in dev the
+    // browser must revalidate so a repacked archive reaches the frames.
+    cache: process.env.NODE_ENV === "production" ? "immutable" : "revalidate",
+  });
 
   const hostServer = await listen(hostApp, portHost);
   let pluginServer: Server;

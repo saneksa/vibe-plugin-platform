@@ -12,7 +12,10 @@ export const PLUGIN_CSP =
   "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'none'; frame-ancestors http://localhost:4000";
 
 /** Plugin listener: every response carries the restrictive isolation headers. */
-export function createPluginApp(pluginsDir: string): Express {
+export function createPluginApp(
+  pluginsDir: string,
+  opts: { cache?: "revalidate" | "immutable" } = {},
+): Express {
   const app = express();
   app.use((_req, res, next) => {
     res.setHeader("Content-Security-Policy", PLUGIN_CSP);
@@ -20,12 +23,14 @@ export function createPluginApp(pluginsDir: string): Express {
     res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
     next();
   });
-  // Versioned paths (/plugins/<id>/<version>/…) never change content, so the
-  // browser can reuse them from disk cache instead of revalidating every file
-  // whenever a widget is added and every frame reloads. `immutable` keeps the
-  // re-add flow request-free; repacking the same version in dev stays stale
-  // until the maxAge window passes — reinstall under a bumped version instead.
-  app.use("/plugins", express.static(pluginsDir, { immutable: true, maxAge: "1h" }));
+  // Versioned paths (/plugins/<id>/<version>/…) never change content. A
+  // deployed host caches them hard (a widget re-add then serves every file
+  // from disk instead of revalidating per frame); a dev server must
+  // revalidate — repacking the same version has to reach the browser.
+  const cache = opts.cache ?? "revalidate";
+  const staticOptions =
+    cache === "immutable" ? { immutable: true, maxAge: "1h" } : undefined;
+  app.use("/plugins", express.static(pluginsDir, staticOptions));
   app.use((_req, res) => res.status(404).json({ code: "NOT_FOUND", message: "plugin file not found" }));
   return app;
 }

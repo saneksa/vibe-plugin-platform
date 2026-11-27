@@ -11,14 +11,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createPluginApp } from "./static.js";
 
 describe("plugin static listener", () => {
-  let app: Express;
   let root: string;
 
   beforeEach(() => {
     root = join(tmpdir(), `vibe-static-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-    mkdirSync(join(root, "plugins", "clock", "2.0.0", "dist"), { recursive: true });
-    writeFileSync(join(root, "plugins", "clock", "2.0.0", "dist", "bundle.js"), "console.log(1);\n");
-    app = createPluginApp(join(root, "plugins"));
+    mkdirSync(join(root, "clock", "2.0.0", "dist"), { recursive: true });
+    writeFileSync(join(root, "clock", "2.0.0", "dist", "bundle.js"), "console.log(1);\n");
   });
 
   afterEach(() => {
@@ -26,7 +24,7 @@ describe("plugin static listener", () => {
   });
 
   /** The body is read once here so the server can close; tests use `text`. */
-  const get = (path: string): Promise<{ res: Response; text: string }> =>
+  const get = (app: Express, path: string): Promise<{ res: Response; text: string }> =>
     new Promise((resolveResponse, reject) => {
       const server = app.listen(0, "127.0.0.1");
       server.once("listening", () => {
@@ -41,8 +39,8 @@ describe("plugin static listener", () => {
       server.once("error", reject);
     });
 
-  it("serves plugin files with the isolation CSP and a long immutable cache", async () => {
-    const { res } = await get("/plugins/clock/2.0.0/dist/bundle.js");
+  it("serves plugin files with the isolation CSP and a long immutable cache in production", async () => {
+    const { res } = await get(createPluginApp(root, { cache: "immutable" }), "/plugins/clock/2.0.0/dist/bundle.js");
 
     expect(res.status).toBe(200);
     expect(res.headers.get("content-security-policy")).toContain("connect-src 'none'");
@@ -55,8 +53,17 @@ describe("plugin static listener", () => {
     expect(Number(/max-age=(\d+)/.exec(cacheControl)?.[1] ?? 0)).toBeGreaterThan(0);
   });
 
+  it("revalidates in dev so a repacked archive reaches the frames", async () => {
+    const { res } = await get(createPluginApp(root), "/plugins/clock/2.0.0/dist/bundle.js");
+
+    expect(res.status).toBe(200);
+    const cacheControl = res.headers.get("cache-control") ?? "";
+    expect(cacheControl).not.toContain("immutable");
+    expect(Number(/max-age=(\d+)/.exec(cacheControl)?.[1] ?? 0)).toBe(0);
+  });
+
   it("answers unknown plugin paths with the JSON 404 and the same headers", async () => {
-    const { res, text } = await get("/plugins/clock/2.0.0/missing.js");
+    const { res, text } = await get(createPluginApp(root), "/plugins/clock/2.0.0/missing.js");
 
     expect(res.status).toBe(404);
     expect(res.headers.get("content-security-policy")).toContain("frame-ancestors");
