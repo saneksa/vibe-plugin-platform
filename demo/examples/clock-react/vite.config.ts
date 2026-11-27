@@ -6,7 +6,7 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: true,
     rollupOptions: {
-      input: "src/main.ts",
+      input: "src/main.tsx",
       output: {
         format: "es",
         entryFileNames: "bundle.js",
