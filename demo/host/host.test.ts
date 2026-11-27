@@ -177,7 +177,40 @@ describe("demo host", () => {
     const remove = document.querySelector<HTMLElement>("[data-widget-menu] [data-remove-widget]");
     if (remove === null) throw new Error("context menu missing");
     expect(remove.dataset.iid).toBe(iid);
-    remove.click();
+
+    // The menu also copies the ids: instance iid and plugin id.
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    const copyButtons = [
+      ...document.querySelectorAll<HTMLButtonElement>("[data-widget-menu] button:not([data-remove-widget])"),
+    ];
+    expect(copyButtons.map((b) => b.textContent)).toEqual([
+      `Копировать iid: ${iid.slice(0, 8)}…`,
+      "Копировать id плагина",
+    ]);
+    copyButtons[0]!.click();
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith(iid));
+    copyButtons[1]!.click();
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith("clock"));
+    // The menu closes after a copy (the same click also dismisses it).
+    expect(document.querySelector("[data-widget-menu]")).toBeNull();
+
+    // Re-open for the removal part of the test.
+    pane.dispatchEvent(
+      new MouseEvent("contextmenu", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 40,
+        clientY: 30,
+      }),
+    );
+    const removeAgain = document.querySelector<HTMLElement>("[data-widget-menu] [data-remove-widget]");
+    if (removeAgain === null) throw new Error("context menu missing");
+    expect(removeAgain.dataset.iid).toBe(iid);
+    removeAgain.click();
 
     await vi.waitFor(() =>
       expect(document.querySelectorAll(`#${CANVAS_ID} iframe`)).toHaveLength(0),

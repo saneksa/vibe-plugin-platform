@@ -119,6 +119,10 @@
 }
 
 .widget-menu button:hover {
+  background: var(--panel-3);
+}
+
+.widget-menu button[data-remove-widget]:hover {
   background: var(--danger-soft);
   color: var(--danger);
 }

@@ -308,9 +308,10 @@ export class Shell {
         <section class="catalog-section" data-section="dev">
           <h2 class="catalog-title">Разработка <span class="catalog-count" data-count="dev"></span></h2>
           <form class="dev-form" data-dev-form>
-            <input type="text" data-dev-id placeholder="id плагина" aria-label="id плагина">
+            <input type="text" data-dev-id list="dev-plugin-ids" placeholder="id плагина (см. под строкой в каталоге)" aria-label="id плагина">
             <input type="text" data-dev-origin placeholder="http://localhost:5173" aria-label="dev-origin">
             <button type="submit" class="btn btn-sm dev-chip" aria-label="Включить разработку" title="Фреймы этого плагина будут грузиться с dev-сервера">＋ dev</button>
+            <datalist id="dev-plugin-ids"></datalist>
           </form>
           <ul class="plugin-list" data-dev-list></ul>
         </section>
@@ -451,6 +452,17 @@ export class Shell {
     const entries = this.deps.dev.list();
     count.textContent = String(entries.length);
     list.replaceChildren(...entries.map((entry) => this.devRow(entry)));
+    // The dev form autocompletes with the installed plugin ids.
+    const ids = this.root.querySelector<HTMLDataListElement>("#dev-plugin-ids");
+    if (ids !== null) {
+      ids.replaceChildren(
+        ...this.catalog.map((entry) => {
+          const option = document.createElement("option");
+          option.value = entry.id;
+          return option;
+        }),
+      );
+    }
     // An installed plugin running from a dev origin gets a badge on its row.
     for (const row of this.root.querySelectorAll<HTMLElement>(".plugin[data-plugin]")) {
       row.dataset.dev = entries.some((entry) => entry.id === row.dataset.plugin) ? "" : undefined;
@@ -535,6 +547,8 @@ export class Shell {
     }
     const instances = entry.kind === "widget" ? (this.deps.instanceCount?.(entry.id) ?? 0) : 0;
     if (instances > 0) meta.append(text("plugin-note", `на холсте: ${instances}`));
+    // The id is what the dev form and the CLI ask for: keep it visible.
+    meta.append(text("plugin-note chip-mono", entry.id));
     if (this.deps.dev.list().some((dev) => dev.id === entry.id)) {
       meta.append(text("chip chip-mono dev-chip", "dev"));
     }

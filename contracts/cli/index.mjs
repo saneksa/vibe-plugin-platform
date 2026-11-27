@@ -36,8 +36,9 @@ async function main() {
   const [command, ...args] = process.argv.slice(2);
   if (command === "create") {
     if (args.length !== 1) return usage();
-    await create(args[0]);
-    console.log(`created ${resolve(args[0])}`);
+    const created = await create(args[0]);
+    console.log(`created ${created.dir}`);
+    console.log(`plugin id: ${created.id} — enter it in the host's "Разработка" section to run with HMR`);
   } else if (command === "pack") {
     console.log(await pack(args[0] ?? process.cwd()));
   } else if (command === "check") {

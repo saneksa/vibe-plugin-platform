@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, readdirSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -13,4 +13,7 @@ export async function create(targetDir) {
   }
   mkdirSync(target, { recursive: true });
   cpSync(TEMPLATE, target, { recursive: true });
+  // The manifest id is what the dev form in the host and `pack` ask for.
+  const manifest = JSON.parse(readFileSync(resolve(target, "manifest.json"), "utf8"));
+  return { dir: target, id: manifest.id };
 }

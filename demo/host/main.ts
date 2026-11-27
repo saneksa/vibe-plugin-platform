@@ -217,7 +217,35 @@ function removeWidget(iid: string): void {
   rt.shell.showStatus(`Виджет${title === undefined ? "" : ` «${title}»`} удалён`, "info");
 }
 
-/** Right-click menu for one widget pane; deletion goes through host-core. */
+/** Clipboard with a textarea fallback (the async API needs focus and a secure context). */
+function copyText(text: string, label: string): void {
+  const report = (ok: boolean): void => {
+    if (ok) runtime?.toasts.push(`${label} скопирован в буфер обмена`, "success");
+    else runtime?.toasts.push(`Не удалось скопировать ${label}`, "error");
+  };
+  const fallback = (): void => {
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    let ok = false;
+    try {
+      ok = document.execCommand("copy");
+    } catch {
+      ok = false;
+    }
+    area.remove();
+    report(ok);
+  };
+  void navigator.clipboard?.writeText(text).then(
+    () => report(true),
+    fallback,
+  );
+}
+
+/** Right-click menu for one widget pane: copy ids and removal via host-core. */
 function showWidgetMenu(iid: string, x: number, y: number): void {
   const rt = runtime;
   if (rt === null) return;
@@ -225,6 +253,21 @@ function showWidgetMenu(iid: string, x: number, y: number): void {
   const menu = document.createElement("div");
   menu.className = "widget-menu";
   menu.dataset.widgetMenu = iid;
+  const pluginId = rt.fm.state.getInstances()[iid]?.pluginId ?? "";
+  const copyButton = (label: string, value: string): HTMLButtonElement => {
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.textContent = label;
+    copy.addEventListener("click", () => {
+      copyText(value, label);
+      closeWidgetMenu();
+    });
+    return copy;
+  };
+  menu.append(
+    copyButton(`Копировать iid: ${iid.slice(0, 8)}…`, iid),
+  );
+  if (pluginId !== "") menu.append(copyButton("Копировать id плагина", pluginId));
   const remove = document.createElement("button");
   remove.type = "button";
   remove.dataset.removeWidget = iid;
