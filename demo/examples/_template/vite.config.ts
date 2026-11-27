@@ -1,7 +1,36 @@
+import { readFileSync } from "node:fs";
+import type { Plugin } from "vite";
 import { defineConfig } from "vite";
+
+// `vite dev` serves index.html with the live ./src/main.ts — but the SDK's
+// readBoot() needs the __VIBE_BOOT__ global that `pack` injects into built
+// archives. The dev server adds it as a tag: replacing the html itself would
+// drop Vite's own HMR client injection. `vite build` uses the source entry as
+// its rollup input, so this transform never runs there. The boot shape mirrors
+// contracts/cli (kept import-free: the config must not pull contracts sources).
+const manifest = JSON.parse(readFileSync(new URL("./manifest.json", import.meta.url), "utf8"));
+const devBoot: Plugin = {
+  name: "vibe-dev-boot",
+  transformIndexHtml: {
+    // Pre: return the same html plus the boot tag, so Vite's own HMR client
+    // injection still applies afterwards.
+    order: "pre",
+    handler: (html: string) => ({
+      html,
+      tags: [
+        {
+          tag: "script",
+          children: `window.__VIBE_BOOT__ = ${JSON.stringify(boot).replace(/</g, "\u003c")};`,
+          injectTo: "head",
+        },
+      ],
+    }),
+  },
+};
 
 // One self-contained ES bundle; the SDK is bundled in, not fetched at runtime.
 export default defineConfig({
+  plugins: [devBoot],
   build: {
     outDir: "dist",
     emptyOutDir: true,

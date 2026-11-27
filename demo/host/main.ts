@@ -460,6 +460,16 @@ function watchDrops(): void {
 
 export function boot(opts: BootOptions = {}): FrameManager {
   applyStoredTheme();
+  const query = new URLSearchParams(window.location.search);
+  const devId = query.get("devPlugin");
+  const devOriginRaw = query.get("devOrigin");
+  const devPlugin =
+    devId !== null &&
+    devId !== "" &&
+    devOriginRaw !== null &&
+    /^https?:\/\//.test(devOriginRaw)
+      ? { id: devId, origin: devOriginRaw.replace(/\/+$/, "") }
+      : undefined;
   const root = appContainer(opts.root);
   root.replaceChildren();
 
@@ -499,6 +509,7 @@ export function boot(opts: BootOptions = {}): FrameManager {
     // Plugins see the theme the chrome is painted in.
     getTheme: currentTheme,
     onNotify: (notification) => rt.toasts.push(notification.message, notification.level),
+    devPlugin,
   });
   const fm = createFrameManager({ adapter, onFrameError: showFrameError });
   const rt: Runtime = {
@@ -540,6 +551,7 @@ export function boot(opts: BootOptions = {}): FrameManager {
     {
       registry,
       toasts: rt.toasts,
+
       onAddWidget: (pluginId) => {
         void (async () => {
           const [versions, active] = await Promise.all([
@@ -585,6 +597,7 @@ export function boot(opts: BootOptions = {}): FrameManager {
     shellRoot,
     bar,
   );
+  rt.shell.setDev(devPlugin);
   rt.launcher = new AppLauncher(
     {
       registry,

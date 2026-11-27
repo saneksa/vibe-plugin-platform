@@ -39,6 +39,13 @@ export interface DemoAdapterConfig {
   getTheme?: () => string;
   /** Sink for `notify.show`; notifications are dropped when it is not set. */
   onNotify?: (notification: { level: string; message: string }, ctx: RpcContext) => void;
+  /**
+   * Widget dev loop: frames of this plugin id mount at a `vite dev` origin
+   * (e.g. http://localhost:5173) instead of the installed archive, so edits
+   * hot-reload inside the frame. A different origin keeps the isolation
+   * guarantees intact — only this plugin's expectedOrigin changes.
+   */
+  devPlugin?: { id: string; origin: string };
 }
 
 const CONTEXT = {
@@ -132,11 +139,16 @@ export class DemoHostAdapter implements HostAdapter {
     else window.history.pushState(null, "", url);
   }
 
-  getPluginOrigin(_plugin: { id: string; version: string }): string {
-    return this.cfg.pluginOrigin;
+  private isDev(plugin: { id: string; version: string }): boolean {
+    return this.cfg.devPlugin !== undefined && plugin.id === this.cfg.devPlugin.id;
+  }
+
+  getPluginOrigin(plugin: { id: string; version: string }): string {
+    return this.isDev(plugin) ? this.cfg.devPlugin!.origin : this.cfg.pluginOrigin;
   }
 
   getPluginFrameBase(plugin: { id: string; version: string }): string {
+    if (this.isDev(plugin)) return `${this.cfg.devPlugin!.origin}/index.html`;
     return this.cfg.frameBase(plugin);
   }
 

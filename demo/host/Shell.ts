@@ -220,6 +220,24 @@ export class Shell {
     chip.hidden = count === 0;
   }
 
+  /** Marks the widget dev loop in the top bar; clicking the chip turns it off. */
+  setDev(dev: { id: string; origin: string } | undefined): void {
+    this.bar.querySelector("[data-dev-chip]")?.remove();
+    if (dev === undefined) return;
+    const title = this.bar.querySelector<HTMLElement>(".bar-title");
+    if (title === null) return;
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "chip chip-mono dev-chip";
+    chip.dataset.devChip = "";
+    chip.title = `Разработка «${dev.id}»: фреймы грузятся с ${dev.origin}. Нажмите, чтобы вернуться к установленным версиям.`;
+    chip.textContent = `dev: ${dev.id}`;
+    chip.addEventListener("click", () => {
+      window.location.assign(window.location.pathname);
+    });
+    title.appendChild(chip);
+  }
+
   /** Swaps the top bar between the canvas and the app view. */
   setApp(app: AppInfo | null): void {
     this.appInfo = app;

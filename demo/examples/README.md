@@ -7,6 +7,11 @@ dependencies live in `demo/package.json`); each example's `package.json`
 documents the canonical `file:../../contracts` link from
 `contracts/templates/plugin`.
 
+Every example also runs `npm run dev` (vite dev on :5173) for the HMR loop:
+open the host with `?devPlugin=<id>&devOrigin=http://localhost:5173`, add the
+widget, edit `src/` — the frame reloads itself. See «Разработка виджета с
+HMR» in `demo/README.md`.
+
 | Directory | Shows |
 | --- | --- |
 | `_template/` | Verbatim copy of the canonical `contracts/templates/plugin`; scaffolding reference, not a packable example. |

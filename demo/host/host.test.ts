@@ -226,8 +226,30 @@ describe("demo host", () => {
     expect(document.querySelectorAll(`#${CANVAS_ID} iframe`)).toHaveLength(1);
   });
 
-  it("boot mounts the shell and full-screen stage inside the #app flex container", async () => {
+  it("dev mode mounts that plugin's frames at the dev origin; neighbours stay on :4001", async () => {
+    window.history.replaceState(null, "", "/?devPlugin=clock&devOrigin=http://localhost:5173/");
     const fm = boot();
+
+    await clickAdd("clock");
+    await clickAdd("notes");
+
+    const origins = [...document.querySelectorAll<HTMLIFrameElement>("#vibe-canvas iframe")].map(
+      (frame) => new URL(frame.getAttribute("src") ?? "").origin,
+    );
+    expect(origins).toContain("http://localhost:5173");
+    expect(origins).toContain(PLUGIN_ORIGIN);
+    const devFrame = document
+      .querySelector<HTMLIFrameElement>('#vibe-canvas iframe[src*="localhost:5173"]')!
+      .getAttribute("src")!;
+    expect(devFrame).toContain("/index.html?iid=");
+    // The top bar marks the dev loop (clicking the chip drops the params).
+    const chip = document.querySelector<HTMLButtonElement>("[data-dev-chip]");
+    expect(chip?.textContent).toBe("dev: clock");
+    expect(chip?.title).toContain("localhost:5173");
+    expect(fm.state.getInstances()).toBeDefined(); // still alive with the dev override
+  });
+
+  it("boot mounts the shell and full-screen stage inside the #app flex container", async () => {    const fm = boot();
     const app = document.querySelector<HTMLElement>("#app");
     if (app === null) throw new Error("#app container missing");
 

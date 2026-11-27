@@ -161,6 +161,8 @@ npx vibe-plugin check dist/my-widget-1.0.0.zip   # → ok
 
 Манифест, права (`capabilities`) и `kind: "app"` описаны в [demo/README.md](demo/README.md). Готовые примеры: ванильный TS, React (TSX), Vue (SFC), приложение с роутингом на react-router и «вредный» виджет.
 
+Для живой разработки у шаблона есть dev-режим с HMR: `npm run dev` в каталоге плагина + `?devPlugin=<id>&devOrigin=http://localhost:5173` у хоста — правки `src/` прилетают во фрейм сами, без pack и загрузки архива. Подробности — в [demo/README.md](demo/README.md#разработка-виджета-с-hmr).
+
 ---
 
 ## Подключить к своему приложению

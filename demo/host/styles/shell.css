@@ -171,6 +171,14 @@ button, input { font-family: inherit; }
   font-weight: 500;
 }
 
+/* Widget dev loop indicator; clicking returns to the installed versions. */
+.dev-chip {
+  border: 1px solid var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent);
+  cursor: pointer;
+}
+
 .plugin-icon {
   display: grid;
   flex: none;
