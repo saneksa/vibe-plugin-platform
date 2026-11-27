@@ -20,7 +20,12 @@ export function createPluginApp(pluginsDir: string): Express {
     res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
     next();
   });
-  app.use("/plugins", express.static(pluginsDir));
+  // Versioned paths (/plugins/<id>/<version>/…) never change content, so the
+  // browser can reuse them from disk cache instead of revalidating every file
+  // whenever a widget is added and every frame reloads. `immutable` keeps the
+  // re-add flow request-free; repacking the same version in dev stays stale
+  // until the maxAge window passes — reinstall under a bumped version instead.
+  app.use("/plugins", express.static(pluginsDir, { immutable: true, maxAge: "1h" }));
   app.use((_req, res) => res.status(404).json({ code: "NOT_FOUND", message: "plugin file not found" }));
   return app;
 }
