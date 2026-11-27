@@ -12,6 +12,9 @@ import { majorOf } from "@vibe/plugin-contracts/protocol";
 
 const INJECTED_BOOT = /<script[^>]*>\s*window\.__VIBE_BOOT__\s*=[\s\S]*?<\/script>/i;
 const HEAD_END = /<\/head\s*>/i;
+// The template (and dev-mode plugins) reference the live source so `vite dev`
+// serves it; the shipped archive must load the built bundle instead.
+const DEV_ENTRY = /(<script[^>]*\ssrc=")\.\/src\/main\.(?:tsx?|jsx)("[^>]*><\/script>)/i;
 
 /** The exact shape validated by `readBoot()` in the SDK (spec §8.4). */
 function bootData(manifest) {
@@ -76,7 +79,8 @@ export async function pack(cwd) {
 
   const files = new Map();
   files.set("manifest.json", readFileSync(manifestPath));
-  files.set("index.html", strToU8(injectBoot(readFileSync(indexPath, "utf8"), manifest)));
+  const indexHtml = readFileSync(indexPath, "utf8").replace(DEV_ENTRY, "$1./dist/bundle.js$2");
+  files.set("index.html", strToU8(injectBoot(indexHtml, manifest)));
   collect(join(root, "dist"), "dist/", files);
   collect(join(root, "assets"), "assets/", files);
 

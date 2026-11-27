@@ -198,7 +198,12 @@ export class MessageRouter {
   }
 
   private onHello(hello: HelloEnvelope, handle: FrameHandle): void {
-    if (handle.state !== "handshake") return;
+    // `handshake` is the fresh mount; `ready` accepts a re-handshake — a frame
+    // that restarted its own world (reload, vite HMR full-reload) sends hello
+    // again over the same validated handle and must mount again, not be
+    // ignored. `failed` (deadline passed) and `destroyed` stay terminal.
+    if (handle.state !== "handshake" && handle.state !== "ready") return;
+
 
     let route: ReturnType<typeof selectAdapter>;
     try {
@@ -221,6 +226,10 @@ export class MessageRouter {
     handle.caps = [...caps];
     handle.state = "ready";
     this.cancelHandshake(handle.iid);
+    // A re-handshake replaces the previous session wholesale: pending RPCs of
+    // the old page can never resolve, subscriptions died with its SDK.
+    const previous = this.states.get(handle.iid);
+    previous?.pending.forEach((entry) => entry.cancel());
     this.states.set(handle.iid, {
       handle,
       major: hello.api,
@@ -330,6 +339,9 @@ export class MessageRouter {
 
     void work.then(
       (value) => {
+        // The session was replaced by a re-handshake: the page that sent this
+        // RPC is gone, and its result must not land in the new session.
+        if (this.states.get(handle.iid) !== state) return;
         if (!state.pending.delete(env.id)) return;
         cancel();
         this.send(handle, {
@@ -341,6 +353,7 @@ export class MessageRouter {
         });
       },
       (err) => {
+        if (this.states.get(handle.iid) !== state) return;
         if (!state.pending.has(env.id)) return;
         const info = errorInfo(err);
         this.reject(state, env, info.code, info.message);

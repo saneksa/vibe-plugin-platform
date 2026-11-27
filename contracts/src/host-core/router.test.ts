@@ -395,6 +395,65 @@ describe("MessageRouter handshake", () => {
     expect(adapter.dispatched).toHaveLength(0);
     expect(sourceOf(h).sent).toEqual([]);
   });
+
+  it("re-handshakes a ready frame that restarted itself (in-frame reload)", async () => {
+    const { router, adapter } = makeRouter();
+    const h = handle();
+
+    router.accept({
+      origin: h.expectedOrigin,
+      source: h.source,
+      data: hello("i1", "2", ["theme.read", "events.read"]),
+      handle: h,
+    });
+    // The first page's world: a subscription and a pending RPC.
+    router.accept({
+      origin: h.expectedOrigin,
+      source: h.source,
+      data: rpc("i1", 1, "2", "events.on", "theme.changed"),
+      handle: h,
+    });
+    router.accept({
+      origin: h.expectedOrigin,
+      source: h.source,
+      data: rpc("i1", 2, "2", "theme.get"),
+      handle: h,
+    });
+    const readyCountBefore = sourceOf(h).sent.filter((e) => e.type === "ready").length;
+
+    // The frame reloads and sends a second hello over the same handle.
+    router.accept({
+      origin: h.expectedOrigin,
+      source: h.source,
+      data: hello("i1", "2", ["theme.read", "events.read"]),
+      handle: h,
+    });
+
+    expect(h.state).toBe("ready");
+    expect(h.caps).toEqual(["theme.read", "events.read"]);
+    const sent = sourceOf(h).sent;
+    expect(sent.filter((e) => e.type === "ready")).toHaveLength(readyCountBefore + 1);
+    // The dead page's pending RPC is dropped wholesale: it never resolves
+    // into the new session (the page that awaited it is gone).
+    await settle();
+    expect(results(sourceOf(h)).some((r) => r.id === 2)).toBe(false);
+    // The old subscription is gone: publishing reaches nothing until the new
+    // page subscribes again.
+    const eventsBefore = sent.filter((e) => e.type === "event").length;
+    router.publish("theme.changed", { mode: "dark" });
+    expect(sourceOf(h).sent.filter((e) => e.type === "event")).toHaveLength(eventsBefore);
+    // And a fresh subscription works again.
+    router.accept({
+      origin: h.expectedOrigin,
+      source: h.source,
+      data: rpc("i1", 3, "2", "events.on", "theme.changed"),
+      handle: h,
+    });
+    router.publish("theme.changed", { mode: "light" });
+    const events = sourceOf(h).sent.filter((e) => e.type === "event");
+    expect(events.at(-1)).toMatchObject({ iid: "i1", topic: "theme.changed" });
+    expect(adapter.grants).toHaveLength(2);
+  });
 });
 
 describe("MessageRouter RPC routing", () => {

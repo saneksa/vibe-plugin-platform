@@ -127,6 +127,25 @@ describe("injectBoot", () => {
   });
 });
 
+describe("pack", () => {
+  it("rewrites the dev source entry (./src/main.ts) to the built bundle", async () => {
+    const dir = tmp();
+    makePlugin(dir);
+    // Dev-style entry: vite dev serves the live source; the archive must not.
+    writeFileSync(
+      join(dir, "index.html"),
+      "<!doctype html><html><head><title>clock</title></head>" +
+        '<body><script type="module" src="./src/main.ts"></script></body></html>',
+    );
+    const zipPath = await pack(dir);
+    const html = text(archive(zipPath), "index.html");
+
+    expect(html).toContain('src="./dist/bundle.js"');
+    expect(html).not.toContain("src/main.ts");
+    expect(html).toContain("window.__VIBE_BOOT__");
+  });
+});
+
 describe("create", () => {
   it("copies the canonical template verbatim", async () => {
     const target = join(tmp(), "new-plugin");
