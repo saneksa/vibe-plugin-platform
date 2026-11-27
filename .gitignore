@@ -4,3 +4,4 @@ storage/
 .superpowers/
 *.log
 .zcode/
+.DS_Store
