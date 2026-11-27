@@ -1,18 +1,19 @@
 # Plugin examples
 
 All examples consume the same `@vibe/plugin-contracts/sdk` and are built with
-the same `vite.config.ts` / `npm run build` pipeline. They resolve React, Vue
-and Vite from `demo/node_modules` (framework dependencies live in
-`demo/package.json`); each example's `package.json` documents the canonical
-`file:../../contracts` link from `contracts/templates/plugin`.
+the same `vite build` / `npm run pack` pipeline. They resolve React, Vue,
+Vite (and the Vue SFC plugin) from `demo/node_modules` (framework
+dependencies live in `demo/package.json`); each example's `package.json`
+documents the canonical `file:../../contracts` link from
+`contracts/templates/plugin`.
 
 | Directory | Shows |
 | --- | --- |
 | `_template/` | Verbatim copy of the canonical `contracts/templates/plugin`; scaffolding reference, not a packable example. |
 | `clock-ts-1.2.0/` | Vanilla TS widget: theme, `theme.changed`, writes the note `k` through `host.storage`. |
 | `clock-ts/` | `2.0.0` of the **same plugin**: same `id` (`clock`) and `hostApi: "^2"`, updated two-panel render reading the same note. |
-| `clock-react/` | React 19 mounted with `createRoot` into the SDK's `el`. |
-| `clock-vue/` | Vue 3 mounted with `createApp` into the SDK's `el`, render functions only. |
+| `clock-react/` | React 19 in TSX (`src/main.tsx`, `jsx: react-jsx`) mounted with `createRoot` into the SDK's `el`. |
+| `clock-vue/` | Vue 3 SFC (`src/App.vue`) mounted with `createApp` into the SDK's `el`; the hostAPI arrives by `provide`/`inject`. |
 | `notes-app/` | `kind: "app"` with `routes: ["/", "/list", "/settings/:tab"]`, `storage.*` and `navigate`. |
 | `hostile-widget/` | The seven §13 attacks from a normal SDK plugin (the standalone rig fixture in `contracts/conformance/fixtures/hostile-plugin` is separate). |
 

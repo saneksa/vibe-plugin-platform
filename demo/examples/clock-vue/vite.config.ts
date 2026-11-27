@@ -1,8 +1,10 @@
+import vue from "@vitejs/plugin-vue";
 import { defineConfig } from "vite";
 
 // One self-contained ES bundle; the SDK is bundled in, not fetched at runtime.
 // Vue's esm-bundler build needs its feature flags pinned explicitly.
 export default defineConfig({
+  plugins: [vue()],
   define: {
     __VUE_OPTIONS_API__: "true",
     __VUE_PROD_DEVTOOLS__: "false",
